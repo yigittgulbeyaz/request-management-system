@@ -3,18 +3,7 @@ package com.yigit.requestms.request.entity;
 import com.yigit.requestms.request.enums.RequestStatus;
 import com.yigit.requestms.request.exception.InvalidRequestTransitionException;
 import com.yigit.requestms.user.entity.UserEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -23,8 +12,12 @@ import java.util.Objects;
 @Table(name = "YIGIT_REQUESTS")
 public class RequestEntity {
 
+    // Sequence rather than identity: this Oracle version cannot return a
+    // generated key to the driver, and a sequence is read before the insert so
+    // nothing needs reading back. It also leaves JDBC batching available.
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "yigitSeqRequests")
+    @SequenceGenerator(name = "yigitSeqRequests", sequenceName = "YIGIT_SEQ_REQUESTS", allocationSize = 1)
     @Column(name = "REQUEST_ID")
     private Long id;
 

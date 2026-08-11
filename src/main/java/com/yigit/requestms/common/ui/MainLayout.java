@@ -2,18 +2,23 @@ package com.yigit.requestms.common.ui;
 
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.spring.security.AuthenticationContext;
-import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.theme.lumo.LumoUtility;
+import jakarta.annotation.security.PermitAll;
 
-// Parent layout for every authenticated view. Navigation items are filtered by
-// role for usability only; access itself is enforced by @RolesAllowed on each
-// view, so hiding a link is never the thing that keeps a user out.
+// PermitAll rather than a role list: the layout itself carries no data, and
+// restricting it would block every role whose views live inside it. Access is
+// decided per view.
+//
+// Navigation items are filtered by role for usability only; a hidden link is
+// never what keeps a user out.
+@PermitAll
 public class MainLayout extends AppLayout {
 
     private final AuthenticationContext authenticationContext;

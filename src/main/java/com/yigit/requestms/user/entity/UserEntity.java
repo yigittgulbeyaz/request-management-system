@@ -2,14 +2,7 @@ package com.yigit.requestms.user.entity;
 
 import com.yigit.requestms.user.enums.Role;
 import com.yigit.requestms.user.enums.SecurityQuestion;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -19,7 +12,8 @@ import java.util.Objects;
 public class UserEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "yigitSeqUsers")
+    @SequenceGenerator(name = "yigitSeqUsers", sequenceName = "YIGIT_SEQ_USERS", allocationSize = 1)
     @Column(name = "USER_ID")
     private Long id;
 

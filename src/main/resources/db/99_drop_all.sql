@@ -20,10 +20,16 @@ DROP TABLE yigit_priorizations;
 DROP TABLE yigit_requests;
 DROP TABLE yigit_users;
 
--- Identity columns create sequences named ISEQ$$_<object_id>, which Oracle
--- drops automatically with the owning table. No manual sequence cleanup needed.
+-- Sequences are independent objects and are not removed with their tables.
+DROP SEQUENCE yigit_seq_history;
+DROP SEQUENCE yigit_seq_notifications;
+DROP SEQUENCE yigit_seq_workflows;
+DROP SEQUENCE yigit_seq_priorizations;
+DROP SEQUENCE yigit_seq_requests;
+DROP SEQUENCE yigit_seq_users;
 
 --------------------------------------------------------------------------------
--- Verification: should return no rows
+-- Verification: both queries should return no rows
 --------------------------------------------------------------------------------
--- SELECT table_name FROM user_tables WHERE table_name LIKE 'YIGIT!_%' ESCAPE '!';
+-- SELECT table_name    FROM user_tables    WHERE table_name    LIKE 'YIGIT!_%' ESCAPE '!';
+-- SELECT sequence_name FROM user_sequences WHERE sequence_name LIKE 'YIGIT!_%' ESCAPE '!';

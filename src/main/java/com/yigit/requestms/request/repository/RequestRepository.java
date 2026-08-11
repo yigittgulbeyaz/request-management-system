@@ -2,25 +2,29 @@ package com.yigit.requestms.request.repository;
 
 import com.yigit.requestms.request.dto.CustomerRequestDto;
 import com.yigit.requestms.request.entity.RequestEntity;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface RequestRepository extends JpaRepository<RequestEntity, Long> {
 
     // Constructor expression rather than entity loading: one query regardless of
     // row count, and the CLOB description never leaves the database.
+    //
+    // List rather than Page because the grid asks for the count separately; a
+    // Page would issue a second COUNT query on every fetch for a total that
+    // nobody reads.
     @Query("""
             SELECT new com.yigit.requestms.request.dto.CustomerRequestDto(
                 r.id, r.title, r.status, r.rejectionReason, r.createdAt)
             FROM RequestEntity r
             WHERE r.customer.id = :customerId
             """)
-    Page<CustomerRequestDto> findSummariesByCustomer(@Param("customerId") Long customerId,
+    List<CustomerRequestDto> findSummariesByCustomer(@Param("customerId") Long customerId,
                                                      Pageable pageable);
 
     long countByCustomerId(Long customerId);

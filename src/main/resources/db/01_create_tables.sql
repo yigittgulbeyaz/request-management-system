@@ -5,15 +5,35 @@
 -- All objects carry the YIGIT_ prefix: the schema is shared between interns,
 -- so unprefixed names such as USERS or REQUESTS would collide.
 --
+-- Primary keys are sequence-backed rather than identity columns. On this
+-- Oracle version the current JDBC driver cannot return a generated key to
+-- Hibernate after an insert, which fails with ORA-17023. A sequence is read
+-- before the insert, so nothing has to be read back; it also leaves JDBC
+-- batching available, which identity columns disable.
+--
 -- Execution order: 01 -> 02 -> (seed scripts)
 -- Rollback: run 99_drop_all.sql
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
+-- Sequences
+--------------------------------------------------------------------------------
+CREATE SEQUENCE yigit_seq_users         START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE yigit_seq_requests      START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE yigit_seq_priorizations START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE yigit_seq_workflows     START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE yigit_seq_notifications START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE yigit_seq_history       START WITH 1 INCREMENT BY 1 NOCACHE;
+
+-- INCREMENT BY 1 must match allocationSize on the entity's @SequenceGenerator.
+-- A mismatch makes Hibernate skip identifiers.
+
+
+--------------------------------------------------------------------------------
 -- YIGIT_USERS
 --------------------------------------------------------------------------------
 CREATE TABLE yigit_users (
-    user_id                 NUMBER              GENERATED ALWAYS AS IDENTITY,
+    user_id                 NUMBER              NOT NULL,
     name_surname            VARCHAR2(100 CHAR)  NOT NULL,
     email                   VARCHAR2(100 CHAR)  NOT NULL,
     password_hash           VARCHAR2(255 CHAR)  NOT NULL,
@@ -58,7 +78,7 @@ COMMENT ON COLUMN yigit_users.security_question IS 'Enum constant name, not the 
 -- YIGIT_REQUESTS
 --------------------------------------------------------------------------------
 CREATE TABLE yigit_requests (
-    request_id          NUMBER              GENERATED ALWAYS AS IDENTITY,
+    request_id          NUMBER              NOT NULL,
     customer_id         NUMBER              NOT NULL,
     title               VARCHAR2(200 CHAR)  NOT NULL,
     description         CLOB                NOT NULL,
@@ -90,7 +110,7 @@ COMMENT ON COLUMN yigit_requests.closed_at IS 'Set automatically when the linked
 -- YIGIT_PRIORIZATIONS
 --------------------------------------------------------------------------------
 CREATE TABLE yigit_priorizations (
-    priority_id     NUMBER      GENERATED ALWAYS AS IDENTITY,
+    priority_id     NUMBER      NOT NULL,
     request_id      NUMBER      NOT NULL,
     impact          NUMBER(1)   NOT NULL,
     urgency         NUMBER(1)   NOT NULL,
@@ -122,7 +142,7 @@ COMMENT ON COLUMN yigit_priorizations.request_id IS 'UNIQUE - enforces the one-t
 -- YIGIT_WORKFLOWS
 --------------------------------------------------------------------------------
 CREATE TABLE yigit_workflows (
-    task_id         NUMBER              GENERATED ALWAYS AS IDENTITY,
+    task_id         NUMBER              NOT NULL,
     request_id      NUMBER              NOT NULL,
     developer_id    NUMBER,
     workflow_status VARCHAR2(30 CHAR)   DEFAULT 'BACKLOG' NOT NULL,
@@ -155,7 +175,7 @@ COMMENT ON COLUMN yigit_workflows.assigned_at IS 'Supports cycle-time metrics; s
 -- YIGIT_NOTIFICATIONS
 --------------------------------------------------------------------------------
 CREATE TABLE yigit_notifications (
-    notification_id     NUMBER              GENERATED ALWAYS AS IDENTITY,
+    notification_id     NUMBER              NOT NULL,
     user_id             NUMBER              NOT NULL,
     message             VARCHAR2(255 CHAR)  NOT NULL,
     is_read             NUMBER(1)           DEFAULT 0 NOT NULL,
@@ -179,7 +199,7 @@ COMMENT ON TABLE yigit_notifications IS 'In-app notifications, written in the sa
 -- YIGIT_REQUEST_STATUS_HISTORY
 --------------------------------------------------------------------------------
 CREATE TABLE yigit_request_status_history (
-    history_id  NUMBER              GENERATED ALWAYS AS IDENTITY,
+    history_id  NUMBER              NOT NULL,
     request_id  NUMBER              NOT NULL,
     old_status  VARCHAR2(30 CHAR),
     new_status  VARCHAR2(30 CHAR)   NOT NULL,
