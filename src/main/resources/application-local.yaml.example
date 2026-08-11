@@ -1,0 +1,6 @@
+# Copy to application-local.yaml and fill in. That file is gitignored.
+spring:
+  datasource:
+    url: jdbc:oracle:thin:@//HOST:1521/SERVICE_NAME
+    username: YOUR_SCHEMA
+    password: YOUR_PASSWORD
