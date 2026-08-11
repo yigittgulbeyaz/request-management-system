@@ -2,7 +2,15 @@ package com.yigit.requestms.user.entity;
 
 import com.yigit.requestms.user.enums.Role;
 import com.yigit.requestms.user.enums.SecurityQuestion;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -63,6 +71,19 @@ public class UserEntity {
     private LocalDateTime createdAt;
 
     protected UserEntity() {
+    }
+
+    // Takes only the fields that have no sensible default, so a user cannot be
+    // constructed in a state the schema would reject.
+    public UserEntity(String nameSurname, String email, String passwordHash, Role role,
+                      SecurityQuestion securityQuestion, String securityAnswerHash) {
+        this.nameSurname = nameSurname;
+        this.email = email;
+        this.passwordHash = passwordHash;
+        this.role = role;
+        this.securityQuestion = securityQuestion;
+        this.securityAnswerHash = securityAnswerHash;
+        this.createdAt = LocalDateTime.now();
     }
 
     public Long getId() {
