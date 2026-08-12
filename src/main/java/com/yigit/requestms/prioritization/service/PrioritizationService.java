@@ -10,7 +10,6 @@ import com.yigit.requestms.prioritization.exception.PrioritizationNotEditableExc
 import com.yigit.requestms.prioritization.repository.PrioritizationRepository;
 import com.yigit.requestms.request.entity.RequestEntity;
 import com.yigit.requestms.request.enums.RequestStatus;
-import com.yigit.requestms.request.exception.RejectionReasonRequiredException;
 import com.yigit.requestms.request.exception.RequestNotFoundException;
 import com.yigit.requestms.request.repository.RequestRepository;
 import com.yigit.requestms.user.entity.UserEntity;
@@ -30,6 +29,15 @@ public class PrioritizationService {
         this.requestRepository = requestRepository;
         this.prioritizationRepository = prioritizationRepository;
         this.currentUserService = currentUserService;
+    }
+
+    // Asked before opening the form rather than discovered on save: navigation
+    // needs a yes or no, and an exception is not an answer it can act on.
+    @Transactional(readOnly = true)
+    public boolean isScorable(Long requestId) {
+        return requestRepository.findById(requestId)
+                .map(request -> isScorable(request.getStatus()))
+                .orElse(false);
     }
 
     @Transactional(readOnly = true)
@@ -64,26 +72,24 @@ public class PrioritizationService {
         }
     }
 
-    @Transactional
-    public void reject(Long requestId, String reason) {
-        if (reason == null || reason.isBlank()) {
-            throw new RejectionReasonRequiredException();
-        }
-        requireRequest(requestId).markRejected(reason.trim());
-    }
-
     private RequestEntity requireRequest(Long requestId) {
         return requestRepository.findById(requestId)
                 .orElseThrow(() -> new RequestNotFoundException(requestId));
     }
 
+    // Checked again on the way in and on the way out. The view asks first so it
+    // can redirect, but a caller reaching the service directly must not get
+    // past it either.
+    private void requireScorable(RequestEntity request) {
+        if (!isScorable(request.getStatus())) {
+            throw new PrioritizationNotEditableException(request.getStatus());
+        }
+    }
+
     // Scoring stops once development starts: changing the number afterwards
     // would rewrite the reason the work was scheduled, after the fact.
-    private void requireScorable(RequestEntity request) {
-        RequestStatus status = request.getStatus();
-        if (status != RequestStatus.NEW && status != RequestStatus.PRIORITIZED) {
-            throw new PrioritizationNotEditableException(status);
-        }
+    private boolean isScorable(RequestStatus status) {
+        return status == RequestStatus.NEW || status == RequestStatus.PRIORITIZED;
     }
 
     private PrioritizationDetailDto detail(RequestEntity request, PrioritizationEntity scoring) {

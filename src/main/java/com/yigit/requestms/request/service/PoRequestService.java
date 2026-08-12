@@ -1,7 +1,10 @@
 package com.yigit.requestms.request.service;
 
 import com.yigit.requestms.request.dto.RequestSummaryDto;
+import com.yigit.requestms.request.entity.RequestEntity;
 import com.yigit.requestms.request.enums.RequestStatus;
+import com.yigit.requestms.request.exception.RejectionReasonRequiredException;
+import com.yigit.requestms.request.exception.RequestNotFoundException;
 import com.yigit.requestms.request.repository.RequestRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -12,8 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 // Kept apart from RequestService: that one answers "my requests" and resolves
-// the customer from the session, this one reads across every customer. Merging
-// them would put two different authorisation rules behind one class.
+// the customer from the session, this one reads and acts across every customer.
+// Merging them would put two different authorisation rules behind one class.
 @Service
 public class PoRequestService {
 
@@ -40,6 +43,21 @@ public class PoRequestService {
     @Transactional(readOnly = true)
     public long countPool(RequestStatus status) {
         return requestRepository.countPoolSummaries(status);
+    }
+
+    // Rejection belongs here rather than with scoring: it is a decision about
+    // the request itself, and it can be reached without the request ever having
+    // been scored.
+    @Transactional
+    public void reject(Long requestId, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new RejectionReasonRequiredException();
+        }
+
+        RequestEntity request = requestRepository.findById(requestId)
+                .orElseThrow(() -> new RequestNotFoundException(requestId));
+
+        request.markRejected(reason.trim());
     }
 
     // Applied here rather than in the query so that a sort chosen in the grid

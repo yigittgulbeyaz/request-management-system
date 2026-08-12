@@ -1,10 +1,14 @@
 package com.yigit.requestms.request.view;
 
+import com.vaadin.flow.component.ClickEvent;
+import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.select.Select;
@@ -15,6 +19,7 @@ import com.yigit.requestms.request.dto.RequestSummaryDto;
 import com.yigit.requestms.request.enums.RequestStatus;
 import com.yigit.requestms.request.service.PoRequestService;
 import com.yigit.requestms.request.ui.PoStatusPresentation;
+import com.yigit.requestms.request.ui.RejectRequestDialog;
 import jakarta.annotation.security.RolesAllowed;
 
 import java.time.format.DateTimeFormatter;
@@ -28,6 +33,7 @@ public class PrioritizationPoolView extends VerticalLayout {
             DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     private final PoRequestService poRequestService;
+
     private final Grid<RequestSummaryDto> grid = new Grid<>();
     private final Select<RequestStatus> statusFilter = new Select<>();
 
@@ -82,9 +88,9 @@ public class PrioritizationPoolView extends VerticalLayout {
                 .setWidth("170px")
                 .setFlexGrow(0);
 
-        // No sort property: sorting statuses alphabetically puts CLOSED first
-        // and NEW third, which is no order anyone wants. The status filter above
-        // is how the owner narrows to one status.
+        // No sort property: sorting statuses alphabetically opens with CLOSED
+        // and buries NEW in third place, which is no order anyone wants. The
+        // filter above the grid is how a single status is reached.
         grid.addComponentColumn(dto -> PoStatusPresentation.statusBadge(dto.status()))
                 .setHeader("Status")
                 .setWidth("150px")
@@ -99,7 +105,7 @@ public class PrioritizationPoolView extends VerticalLayout {
         // No sort property: the action column renders buttons, not a value.
         grid.addComponentColumn(this::actionColumn)
                 .setHeader("Action")
-                .setWidth("220px")
+                .setWidth("260px")
                 .setFlexGrow(0);
 
         grid.setSizeFull();
@@ -117,34 +123,56 @@ public class PrioritizationPoolView extends VerticalLayout {
 
         switch (dto.status()) {
             case NEW -> {
-                actions.add(primary("Prioritize"));
-                actions.add(danger("Reject"));
+                actions.add(primary("Prioritize", e -> openScoringForm(dto)));
+                actions.add(danger("Reject", e -> openRejectDialog(dto)));
             }
             case PRIORITIZED -> {
-                actions.add(primary("Convert to Workflow"));
-                actions.add(tertiary("Edit"));
+                actions.add(primary("Convert to Workflow", e -> {
+                    // Wired up with the workflow module.
+                }));
+                actions.add(tertiary("Edit", e -> openScoringForm(dto)));
             }
             default -> {
-                // IN_WORKFLOW, CLOSED and REJECTED are read-only for the owner.
+                // Nothing for the owner here: IN_WORKFLOW belongs to the
+                // assigned developer, and CLOSED and REJECTED are final.
             }
         }
         return actions;
     }
 
-    private Button primary(String label) {
-        Button button = new Button(label);
+    private void openScoringForm(RequestSummaryDto dto) {
+        getUI().ifPresent(ui -> ui.navigate("po/prioritize?requestId=" + dto.id()));
+    }
+
+    // No try-catch: a rule broken in the service reaches the global error
+    // handler, which is the one place that knows how to say so.
+    private void openRejectDialog(RequestSummaryDto dto) {
+        new RejectRequestDialog(dto.title(), reason -> {
+            poRequestService.reject(dto.id(), reason);
+            notifySuccess("Request rejected.");
+            grid.getDataProvider().refreshAll();
+        }).open();
+    }
+
+    private void notifySuccess(String message) {
+        Notification.show(message, 3000, Notification.Position.BOTTOM_END)
+                .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+    }
+
+    private Button primary(String label, ComponentEventListener<ClickEvent<Button>> listener) {
+        Button button = new Button(label, listener);
         button.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
         return button;
     }
 
-    private Button tertiary(String label) {
-        Button button = new Button(label);
+    private Button tertiary(String label, ComponentEventListener<ClickEvent<Button>> listener) {
+        Button button = new Button(label, listener);
         button.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
         return button;
     }
 
-    private Button danger(String label) {
-        Button button = new Button(label);
+    private Button danger(String label, ComponentEventListener<ClickEvent<Button>> listener) {
+        Button button = new Button(label, listener);
         button.addThemeVariants(ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_TERTIARY,
                 ButtonVariant.LUMO_SMALL);
         return button;
