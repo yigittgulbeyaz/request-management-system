@@ -20,6 +20,7 @@ import com.yigit.requestms.request.enums.RequestStatus;
 import com.yigit.requestms.request.service.PoRequestService;
 import com.yigit.requestms.request.ui.PoStatusPresentation;
 import com.yigit.requestms.request.ui.RejectRequestDialog;
+import com.yigit.requestms.workflow.service.WorkflowService;
 import jakarta.annotation.security.RolesAllowed;
 
 import java.time.format.DateTimeFormatter;
@@ -33,12 +34,15 @@ public class PrioritizationPoolView extends VerticalLayout {
             DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     private final PoRequestService poRequestService;
+    private final WorkflowService workflowService;
 
     private final Grid<RequestSummaryDto> grid = new Grid<>();
     private final Select<RequestStatus> statusFilter = new Select<>();
 
-    public PrioritizationPoolView(PoRequestService poRequestService) {
+    public PrioritizationPoolView(PoRequestService poRequestService,
+                                  WorkflowService workflowService) {
         this.poRequestService = poRequestService;
+        this.workflowService = workflowService;
 
         setSizeFull();
         configureFilter();
@@ -127,9 +131,7 @@ public class PrioritizationPoolView extends VerticalLayout {
                 actions.add(danger("Reject", e -> openRejectDialog(dto)));
             }
             case PRIORITIZED -> {
-                actions.add(primary("Convert to Workflow", e -> {
-                    // Wired up with the workflow module.
-                }));
+                actions.add(primary("Convert to Workflow", e -> convertToWorkflow(dto)));
                 actions.add(tertiary("Edit", e -> openScoringForm(dto)));
             }
             default -> {
@@ -144,8 +146,14 @@ public class PrioritizationPoolView extends VerticalLayout {
         getUI().ifPresent(ui -> ui.navigate("po/prioritize?requestId=" + dto.id()));
     }
 
-    // No try-catch: a rule broken in the service reaches the global error
-    // handler, which is the one place that knows how to say so.
+    // No try-catch anywhere below: a rule broken in the service reaches the
+    // global error handler, which is the one place that knows how to say so.
+    private void convertToWorkflow(RequestSummaryDto dto) {
+        workflowService.convertToWorkflow(dto.id());
+        notifySuccess("Converted to a development task.");
+        grid.getDataProvider().refreshAll();
+    }
+
     private void openRejectDialog(RequestSummaryDto dto) {
         new RejectRequestDialog(dto.title(), reason -> {
             poRequestService.reject(dto.id(), reason);
