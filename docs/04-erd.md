@@ -95,7 +95,7 @@ erDiagram
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
-| `user_id` | `NUMBER` | PK, identity | Auto-generated |
+| `user_id` | `NUMBER` | PK, sequence | Auto-generated |
 | `name_surname` | `VARCHAR2(100)` | `NOT NULL` | |
 | `email` | `VARCHAR2(100)` | `NOT NULL`, `UNIQUE` | Login identifier |
 | `password_hash` | `VARCHAR2(255)` | `NOT NULL` | BCrypt output, ~60 chars; column sized for headroom |
@@ -118,7 +118,7 @@ erDiagram
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
-| `request_id` | `NUMBER` | PK, identity | |
+| `request_id` | `NUMBER` | PK, sequence | |
 | `customer_id` | `NUMBER` | `NOT NULL`, FK → `USERS` | Always resolved from the session |
 | `title` | `VARCHAR2(200)` | `NOT NULL` | |
 | `description` | `CLOB` | `NOT NULL` | See note below |
@@ -137,7 +137,7 @@ erDiagram
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
-| `priority_id` | `NUMBER` | PK, identity | |
+| `priority_id` | `NUMBER` | PK, sequence | |
 | `request_id` | `NUMBER` | `NOT NULL`, FK → `REQUESTS`, `UNIQUE` | Enforces one-to-one |
 | `impact` | `NUMBER(1)` | `NOT NULL`, `CHECK BETWEEN 1 AND 5` | |
 | `urgency` | `NUMBER(1)` | `NOT NULL`, `CHECK BETWEEN 1 AND 5` | |
@@ -163,7 +163,7 @@ Either way the application sends only `impact` and `urgency`. A score calculated
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
-| `task_id` | `NUMBER` | PK, identity | |
+| `task_id` | `NUMBER` | PK, sequence | |
 | `request_id` | `NUMBER` | `NOT NULL`, FK → `REQUESTS`, `UNIQUE` | One workflow per request |
 | `developer_id` | `NUMBER` | Nullable, FK → `USERS` | Null while unclaimed |
 | `workflow_status` | `VARCHAR2(30)` | `NOT NULL`, default `'BACKLOG'`, `CHECK` | `BACKLOG`, `IN_PROGRESS`, `TESTING`, `DONE` |
@@ -180,7 +180,7 @@ Either way the application sends only `impact` and `urgency`. A score calculated
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
-| `notification_id` | `NUMBER` | PK, identity | |
+| `notification_id` | `NUMBER` | PK, sequence | |
 | `user_id` | `NUMBER` | `NOT NULL`, FK → `USERS` | Recipient |
 | `message` | `VARCHAR2(255)` | `NOT NULL` | |
 | `is_read` | `NUMBER(1)` | `NOT NULL`, default `0` | |
@@ -193,7 +193,7 @@ Notification rows are written inside the same transaction as the state change th
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
-| `history_id` | `NUMBER` | PK, identity | |
+| `history_id` | `NUMBER` | PK, sequence | |
 | `request_id` | `NUMBER` | `NOT NULL`, FK → `REQUESTS` | |
 | `old_status` | `VARCHAR2(30)` | Nullable | Null for the creation event |
 | `new_status` | `VARCHAR2(30)` | `NOT NULL` | |
@@ -285,15 +285,21 @@ The projection also excludes `description`, keeping the `CLOB` out of a query th
 
 ---
 
-## 6. Version Dependency
+## 6. Target Version
 
-Two schema decisions depend on the Oracle version of the target instance:
+The instance runs Oracle 12.1.0.2, confirmed with `SELECT * FROM v$version;` before the DDL was written. Two decisions follow from it.
 
-| Feature | Oracle 12c and later | Earlier versions |
-|---|---|---|
-| Primary key generation | `GENERATED ALWAYS AS IDENTITY` | `SEQUENCE` plus a `BEFORE INSERT` trigger |
-| `priority_score` | Virtual column | `BEFORE INSERT OR UPDATE` trigger |
+### Sequences rather than identity columns
 
-The schema itself is unaffected: the columns, their meanings, and their relationships are identical under either approach. Only the DDL syntax changes.
+Identity columns were the first choice, and they failed on the first insert: `ORA-17023, unsupported feature getMetaData`. On this version the JDBC driver cannot hand a generated key back to Hibernate after an insert.
 
-The target version is confirmed with `SELECT * FROM v$version;` before the DDL scripts are written.
+Sequences avoid the problem rather than work around it. A sequence is read *before* the insert, so there is nothing to read back afterwards. Two things follow:
+
+- The `@SequenceGenerator` on each entity must declare `allocationSize = 1` to match `INCREMENT BY 1` on the sequence. A mismatch makes Hibernate skip identifiers.
+- JDBC batching stays available. Identity columns disable it, because each row's key has to be fetched individually.
+
+Sequences are independent objects: they are not dropped with their tables, which is why the teardown script names them separately.
+
+### Virtual column for `priority_score`
+
+Supported here, so the score is declarative rather than procedural. On a version without virtual columns the fallback would have been a `BEFORE INSERT OR UPDATE` trigger, which computes the same value but adds code to maintain.
