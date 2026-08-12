@@ -23,6 +23,8 @@ public class RootRedirectView extends Div implements BeforeEnterObserver {
     public void beforeEnter(BeforeEnterEvent event) {
         if (authenticationContext.hasRole("CUSTOMER")) {
             event.forwardTo("requests/my");
+        } else if (authenticationContext.hasRole("PRODUCT_OWNER")) {
+            event.forwardTo("po/pool");
         }
     }
 }

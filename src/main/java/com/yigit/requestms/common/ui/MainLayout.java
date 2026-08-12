@@ -50,6 +50,9 @@ public class MainLayout extends AppLayout {
             nav.addItem(new SideNavItem("New Request", "requests/new"));
             nav.addItem(new SideNavItem("My Requests", "requests/my"));
         }
+        if (authenticationContext.hasRole("PRODUCT_OWNER")) {
+            nav.addItem(new SideNavItem("Prioritization Pool", "po/pool"));
+        }
         return nav;
     }
 }
