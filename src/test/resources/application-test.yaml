@@ -1,0 +1,9 @@
+# Reuses the local connection: this test only reads, and it counts queries
+# rather than asserting on data, so it does not care what rows exist.
+spring:
+  config:
+    import: optional:classpath:/application-local.yaml
+  jpa:
+    properties:
+      hibernate:
+        generate_statistics: true
