@@ -53,6 +53,10 @@ public class MainLayout extends AppLayout {
         if (authenticationContext.hasRole("PRODUCT_OWNER")) {
             nav.addItem(new SideNavItem("Prioritization Pool", "po/pool"));
         }
+        if (authenticationContext.hasRole("DEVELOPER")) {
+            nav.addItem(new SideNavItem("My Tasks", "dev/tasks"));
+            nav.addItem(new SideNavItem("Available Tasks", "dev/available"));
+        }
         return nav;
     }
 }

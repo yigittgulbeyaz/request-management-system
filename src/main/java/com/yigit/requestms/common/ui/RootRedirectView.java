@@ -25,6 +25,8 @@ public class RootRedirectView extends Div implements BeforeEnterObserver {
             event.forwardTo("requests/my");
         } else if (authenticationContext.hasRole("PRODUCT_OWNER")) {
             event.forwardTo("po/pool");
+        } else if (authenticationContext.hasRole("DEVELOPER")) {
+            event.forwardTo("dev/tasks");
+        }
         }
     }
-}

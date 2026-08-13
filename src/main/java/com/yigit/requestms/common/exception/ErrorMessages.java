@@ -14,7 +14,10 @@ public final class ErrorMessages {
             "REJECTION_REASON_REQUIRED", "A reason is required before rejecting a request.",
             "UNAUTHENTICATED", "Your session has ended. Please sign in again.",
             "INVALID_WORKFLOW_TRANSITION", "This task cannot move to that stage.",
-            "WORKFLOW_ALREADY_EXISTS", "This request is already in development."
+            "WORKFLOW_ALREADY_EXISTS", "This request is already in development.",
+            "TASK_NOT_FOUND", "That task could not be found.",
+            "TASK_ALREADY_CLAIMED", "Someone else took this task first.",
+            "TASK_NOT_YOURS", "This task is assigned to another developer."
     );
 
     private static final String FALLBACK = "Something went wrong. Please try again.";
