@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class WorkflowService {
@@ -118,9 +119,14 @@ public class WorkflowService {
     // the getter hands back a proxy whose own field is not populated; equals on
     // it reads a null id and refuses a task the caller does own. Reading the id
     // forces the proxy to load first.
+    //
+    // Objects.equals rather than a direct call: an id is null on an entity that
+    // has not been persisted, and dereferencing it would fail before the
+    // comparison ever ran.
     private void requireOwnership(WorkflowEntity task) {
         UserEntity assignee = task.getDeveloper();
-        if (assignee == null || !assignee.getId().equals(currentUserService.requireId())) {
+        if (assignee == null
+                || !Objects.equals(assignee.getId(), currentUserService.requireId())) {
             throw new TaskNotAssignedToYouException(task.getId());
         }
     }

@@ -1,5 +1,6 @@
 package com.yigit.requestms.workflow.service;
 
+import com.yigit.requestms.common.security.CurrentUserService;
 import com.yigit.requestms.request.entity.RequestEntity;
 import com.yigit.requestms.request.enums.RequestStatus;
 import com.yigit.requestms.request.exception.InvalidRequestTransitionException;
@@ -10,6 +11,10 @@ import com.yigit.requestms.user.enums.Role;
 import com.yigit.requestms.user.enums.SecurityQuestion;
 import com.yigit.requestms.workflow.entity.WorkflowEntity;
 import com.yigit.requestms.workflow.enums.WorkflowStatus;
+import com.yigit.requestms.workflow.exception.InvalidWorkflowTransitionException;
+import com.yigit.requestms.workflow.exception.TaskAlreadyClaimedException;
+import com.yigit.requestms.workflow.exception.TaskNotAssignedToYouException;
+import com.yigit.requestms.workflow.exception.TaskNotFoundException;
 import com.yigit.requestms.workflow.exception.WorkflowAlreadyExistsException;
 import com.yigit.requestms.workflow.repository.WorkflowRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +26,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.lang.reflect.Field;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,6 +40,9 @@ import static org.mockito.Mockito.when;
 class WorkflowServiceTest {
 
     private static final Long REQUEST_ID = 42L;
+    private static final Long TASK_ID = 7L;
+    private static final Long DEVELOPER_ID = 11L;
+    private static final Long OTHER_DEVELOPER_ID = 12L;
 
     @Mock
     private RequestRepository requestRepository;
@@ -41,16 +50,24 @@ class WorkflowServiceTest {
     @Mock
     private WorkflowRepository workflowRepository;
 
+    @Mock
+    private CurrentUserService currentUserService;
+
     @InjectMocks
     private WorkflowService workflowService;
 
     private UserEntity customer;
+    private UserEntity developer;
+    private UserEntity otherDeveloper;
 
     @BeforeEach
     void setUp() {
-        customer = new UserEntity("Ahmet Yilmaz", "ahmet@example.com", "hash",
-                Role.CUSTOMER, SecurityQuestion.BIRTH_CITY, "answerHash");
+        customer = user("Ahmet Yilmaz", "ahmet@example.com", Role.CUSTOMER, 1L);
+        developer = user("Deniz Yildirim", "deniz@example.com", Role.DEVELOPER, DEVELOPER_ID);
+        otherDeveloper = user("Can Ozturk", "can@example.com", Role.DEVELOPER, OTHER_DEVELOPER_ID);
     }
+
+    // --- conversion -------------------------------------------------------
 
     @Test
     @DisplayName("opens the task in BACKLOG with nobody assigned")
@@ -130,10 +147,165 @@ class WorkflowServiceTest {
         verify(workflowRepository, never()).save(any());
     }
 
+    // --- claiming ---------------------------------------------------------
+
+    @Test
+    @DisplayName("claiming assigns the session user and stamps the time")
+    void claimAssignsSessionUser() {
+        WorkflowEntity task = unclaimedTask();
+
+        when(workflowRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        when(currentUserService.require()).thenReturn(developer);
+
+        workflowService.claim(TASK_ID);
+
+        assertThat(task.getDeveloper()).isSameAs(developer);
+        // Both fields move together, which the schema also enforces: an owner
+        // without a timestamp says nothing about how long the task waited.
+        assertThat(task.getAssignedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("refuses a task someone else already took")
+    void claimingATakenTaskIsRefused() {
+        WorkflowEntity task = unclaimedTask();
+        task.assignTo(otherDeveloper);
+
+        when(workflowRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> workflowService.claim(TASK_ID))
+                .isInstanceOf(TaskAlreadyClaimedException.class);
+
+        assertThat(task.getDeveloper()).isSameAs(otherDeveloper);
+    }
+
+    @Test
+    @DisplayName("refuses a task that does not exist")
+    void claimingAMissingTaskIsRefused() {
+        when(workflowRepository.findById(TASK_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> workflowService.claim(TASK_ID))
+                .isInstanceOf(TaskNotFoundException.class);
+    }
+
+    // --- advancing --------------------------------------------------------
+
+    @Test
+    @DisplayName("advances a task the session user owns")
+    void advanceMovesTheStage() {
+        WorkflowEntity task = claimedTask();
+
+        when(workflowRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        when(currentUserService.requireId()).thenReturn(DEVELOPER_ID);
+
+        workflowService.advance(TASK_ID, WorkflowStatus.IN_PROGRESS);
+
+        assertThat(task.getStatus()).isEqualTo(WorkflowStatus.IN_PROGRESS);
+    }
+
+    @Test
+    @DisplayName("finishing the task closes the customer's request with it")
+    void doneClosesTheRequest() {
+        WorkflowEntity task = claimedTask();
+        task.transitionTo(WorkflowStatus.IN_PROGRESS);
+        task.transitionTo(WorkflowStatus.TESTING);
+
+        when(workflowRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        when(currentUserService.requireId()).thenReturn(DEVELOPER_ID);
+
+        workflowService.advance(TASK_ID, WorkflowStatus.DONE);
+
+        // No owner approval step: a developer saying the work is finished is
+        // the whole of the decision, and closedAt is what the resolution time
+        // report reads.
+        assertThat(task.getRequest().getStatus()).isEqualTo(RequestStatus.CLOSED);
+        assertThat(task.getRequest().getClosedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("refuses to advance a task assigned to another developer")
+    void advancingSomeoneElsesTaskIsRefused() {
+        WorkflowEntity task = unclaimedTask();
+        task.assignTo(otherDeveloper);
+
+        when(workflowRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        when(currentUserService.requireId()).thenReturn(DEVELOPER_ID);
+
+        assertThatThrownBy(() -> workflowService.advance(TASK_ID, WorkflowStatus.IN_PROGRESS))
+                .isInstanceOf(TaskNotAssignedToYouException.class);
+
+        assertThat(task.getStatus()).isEqualTo(WorkflowStatus.BACKLOG);
+    }
+
+    @Test
+    @DisplayName("refuses to advance a task nobody has taken")
+    void advancingAnUnclaimedTaskIsRefused() {
+        WorkflowEntity task = unclaimedTask();
+
+        when(workflowRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+
+        // Work cannot start without an owner: the schema says so too, through
+        // the check that keeps an unassigned task in BACKLOG. No session lookup
+        // is stubbed because the null assignee is refused before one happens.
+        assertThatThrownBy(() -> workflowService.advance(TASK_ID, WorkflowStatus.IN_PROGRESS))
+                .isInstanceOf(TaskNotAssignedToYouException.class);
+    }
+
+    @Test
+    @DisplayName("refuses a stage the board does not allow, even for the owner")
+    void skippingAStageIsRefused() {
+        WorkflowEntity task = claimedTask();
+
+        when(workflowRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        when(currentUserService.requireId()).thenReturn(DEVELOPER_ID);
+
+        assertThatThrownBy(() -> workflowService.advance(TASK_ID, WorkflowStatus.DONE))
+                .isInstanceOf(InvalidWorkflowTransitionException.class);
+
+        // The refusal leaves nothing half-applied: the request is untouched
+        // because the stage never moved.
+        assertThat(task.getStatus()).isEqualTo(WorkflowStatus.BACKLOG);
+        assertThat(task.getRequest().getStatus()).isEqualTo(RequestStatus.IN_WORKFLOW);
+    }
+
+    // --- fixtures ---------------------------------------------------------
+
     private RequestEntity prioritizedRequest() {
         RequestEntity request = new RequestEntity(customer, "Excel export is empty",
                 "The monthly sales report downloads as a zero byte file.");
         request.transitionTo(RequestStatus.PRIORITIZED);
         return request;
+    }
+
+    private WorkflowEntity unclaimedTask() {
+        RequestEntity request = prioritizedRequest();
+        request.transitionTo(RequestStatus.IN_WORKFLOW);
+        return new WorkflowEntity(request);
+    }
+
+    private WorkflowEntity claimedTask() {
+        WorkflowEntity task = unclaimedTask();
+        task.assignTo(developer);
+        return task;
+    }
+
+    private UserEntity user(String name, String email, Role role, Long id) {
+        UserEntity user = new UserEntity(name, email, "hash", role,
+                SecurityQuestion.BIRTH_CITY, "answerHash");
+        assignId(user, id);
+        return user;
+    }
+
+    // The entity has no id setter on purpose: Hibernate assigns it. Ownership
+    // is compared by id, so a test that never persists still has to supply one,
+    // and reflection is the smaller concession of the two.
+    private void assignId(UserEntity user, Long id) {
+        try {
+            Field field = UserEntity.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(user, id);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Could not set id on UserEntity", e);
+        }
     }
 }
