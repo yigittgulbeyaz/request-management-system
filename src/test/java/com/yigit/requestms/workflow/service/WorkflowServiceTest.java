@@ -7,6 +7,7 @@ import com.yigit.requestms.request.exception.InvalidRequestTransitionException;
 import com.yigit.requestms.request.exception.RequestNotFoundException;
 import com.yigit.requestms.request.repository.RequestRepository;
 import com.yigit.requestms.user.entity.UserEntity;
+import com.yigit.requestms.request.service.RequestAuditService;
 import com.yigit.requestms.user.enums.Role;
 import com.yigit.requestms.user.enums.SecurityQuestion;
 import com.yigit.requestms.workflow.entity.WorkflowEntity;
@@ -52,6 +53,9 @@ class WorkflowServiceTest {
 
     @Mock
     private CurrentUserService currentUserService;
+
+    @Mock
+    private RequestAuditService auditService;
 
     @InjectMocks
     private WorkflowService workflowService;

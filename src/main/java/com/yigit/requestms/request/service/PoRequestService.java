@@ -1,5 +1,6 @@
 package com.yigit.requestms.request.service;
 
+import com.yigit.requestms.common.security.CurrentUserService;
 import com.yigit.requestms.request.dto.RequestSummaryDto;
 import com.yigit.requestms.request.entity.RequestEntity;
 import com.yigit.requestms.request.enums.RequestStatus;
@@ -30,9 +31,15 @@ public class PoRequestService {
             Sort.Order.desc("r.createdAt"));
 
     private final RequestRepository requestRepository;
+    private final CurrentUserService currentUserService;
+    private final RequestAuditService auditService;
 
-    public PoRequestService(RequestRepository requestRepository) {
+    public PoRequestService(RequestRepository requestRepository,
+                            CurrentUserService currentUserService,
+                            RequestAuditService auditService) {
         this.requestRepository = requestRepository;
+        this.currentUserService = currentUserService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -46,8 +53,11 @@ public class PoRequestService {
     }
 
     // Rejection belongs here rather than with scoring: it is a decision about
-    // the request itself, and it can be reached without the request ever having
+    // the request itself and can be reached without the request ever having
     // been scored.
+    //
+    // The reason travels into the notification as well as the record. A dead
+    // end with no explanation is worse than no answer at all.
     @Transactional
     public void reject(Long requestId, String reason) {
         if (reason == null || reason.isBlank()) {
@@ -57,7 +67,13 @@ public class PoRequestService {
         RequestEntity request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new RequestNotFoundException(requestId));
 
+        RequestStatus previous = request.getStatus();
         request.markRejected(reason.trim());
+
+        auditService.recordTransition(request, previous, RequestStatus.REJECTED,
+                currentUserService.require());
+        auditService.notify(request.getCustomer(),
+                "Your request was not taken forward.", request);
     }
 
     // Applied here rather than in the query so that a sort chosen in the grid

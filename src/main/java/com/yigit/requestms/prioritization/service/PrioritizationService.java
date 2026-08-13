@@ -12,6 +12,7 @@ import com.yigit.requestms.request.entity.RequestEntity;
 import com.yigit.requestms.request.enums.RequestStatus;
 import com.yigit.requestms.request.exception.RequestNotFoundException;
 import com.yigit.requestms.request.repository.RequestRepository;
+import com.yigit.requestms.request.service.RequestAuditService;
 import com.yigit.requestms.user.entity.UserEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,13 +23,16 @@ public class PrioritizationService {
     private final RequestRepository requestRepository;
     private final PrioritizationRepository prioritizationRepository;
     private final CurrentUserService currentUserService;
+    private final RequestAuditService auditService;
 
     public PrioritizationService(RequestRepository requestRepository,
                                  PrioritizationRepository prioritizationRepository,
-                                 CurrentUserService currentUserService) {
+                                 CurrentUserService currentUserService,
+                                 RequestAuditService auditService) {
         this.requestRepository = requestRepository;
         this.prioritizationRepository = prioritizationRepository;
         this.currentUserService = currentUserService;
+        this.auditService = auditService;
     }
 
     // Asked before opening the form rather than discovered on save: navigation
@@ -50,15 +54,17 @@ public class PrioritizationService {
                 .orElseGet(() -> detail(request, null));
     }
 
-    // Both writes happen together or neither does: a prioritization row without
-    // the matching status leaves the request invisible to the owner who just
-    // scored it.
+    // Four writes, one transaction: the score, the status, the trail entry and
+    // the customer's notice. A score without the status leaves the request
+    // invisible to the owner who just entered it; a notice without the score
+    // tells the customer about something that did not happen.
     @Transactional
     public void score(Long requestId, PrioritizationFormDto form) {
         RequestEntity request = requireRequest(requestId);
         requireScorable(request);
 
         UserEntity owner = currentUserService.require();
+        RequestStatus previous = request.getStatus();
 
         prioritizationRepository.findByRequestId(requestId).ifPresentOrElse(
                 existing -> existing.revise(form.impact().getValue(), form.urgency().getValue()),
@@ -67,8 +73,13 @@ public class PrioritizationService {
 
         // Already PRIORITIZED when a score is revised, and the state machine
         // has no self-transition, so the move is only made on first scoring.
-        if (request.getStatus() == RequestStatus.NEW) {
+        // A revision is a correction to a decision already recorded, not a new
+        // event, which is why it writes no trail entry and sends no notice.
+        if (previous == RequestStatus.NEW) {
             request.transitionTo(RequestStatus.PRIORITIZED);
+            auditService.recordTransition(request, previous, RequestStatus.PRIORITIZED, owner);
+            auditService.notify(request.getCustomer(),
+                    "Your request has been reviewed and prioritised.", request);
         }
     }
 

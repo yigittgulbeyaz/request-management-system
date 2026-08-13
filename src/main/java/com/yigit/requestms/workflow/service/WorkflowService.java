@@ -5,6 +5,7 @@ import com.yigit.requestms.request.entity.RequestEntity;
 import com.yigit.requestms.request.enums.RequestStatus;
 import com.yigit.requestms.request.exception.RequestNotFoundException;
 import com.yigit.requestms.request.repository.RequestRepository;
+import com.yigit.requestms.request.service.RequestAuditService;
 import com.yigit.requestms.user.entity.UserEntity;
 import com.yigit.requestms.workflow.dto.TaskSummaryDto;
 import com.yigit.requestms.workflow.entity.WorkflowEntity;
@@ -28,13 +29,16 @@ public class WorkflowService {
     private final RequestRepository requestRepository;
     private final WorkflowRepository workflowRepository;
     private final CurrentUserService currentUserService;
+    private final RequestAuditService auditService;
 
     public WorkflowService(RequestRepository requestRepository,
                            WorkflowRepository workflowRepository,
-                           CurrentUserService currentUserService) {
+                           CurrentUserService currentUserService,
+                           RequestAuditService auditService) {
         this.requestRepository = requestRepository;
         this.workflowRepository = workflowRepository;
         this.currentUserService = currentUserService;
+        this.auditService = auditService;
     }
 
     // Creating the task and moving the request happen together. A task whose
@@ -55,7 +59,12 @@ public class WorkflowService {
             throw new WorkflowAlreadyExistsException(requestId);
         }
 
+        RequestStatus previous = request.getStatus();
         request.transitionTo(RequestStatus.IN_WORKFLOW);
+
+        auditService.recordTransition(request, previous, RequestStatus.IN_WORKFLOW,
+                currentUserService.require());
+
         return workflowRepository.save(new WorkflowEntity(request)).getId();
     }
 
@@ -94,19 +103,31 @@ public class WorkflowService {
         task.assignTo(currentUserService.require());
     }
 
-    // The request closes on its own when the task is done: a developer says the
-    // work is finished, and the customer's request has no separate life after
-    // that. No owner approval step, because there is no reviewer role here to
-    // put behind one.
+    // Everything the move implies happens together: the stage, the trail entry,
+    // and on DONE the closing of the request and the notice to the customer.
+    //
+    // The request closes on its own: a developer saying the work is finished is
+    // the whole of the decision, because there is no reviewer role here to put
+    // an approval step behind.
     @Transactional
     public void advance(Long taskId, WorkflowStatus target) {
         WorkflowEntity task = requireTask(taskId);
         requireOwnership(task);
 
+        UserEntity actor = currentUserService.require();
+        WorkflowStatus previousStage = task.getStatus();
+        RequestEntity request = task.getRequest();
+
         task.transitionTo(target);
+        auditService.recordTransition(request, previousStage, target, actor);
 
         if (target == WorkflowStatus.DONE) {
-            task.getRequest().markClosed(LocalDateTime.now());
+            RequestStatus previousStatus = request.getStatus();
+            request.markClosed(LocalDateTime.now());
+
+            auditService.recordTransition(request, previousStatus, RequestStatus.CLOSED, actor);
+            auditService.notify(request.getCustomer(),
+                    "Your request has been completed.", request);
         }
     }
 
