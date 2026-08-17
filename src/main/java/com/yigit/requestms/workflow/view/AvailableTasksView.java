@@ -14,9 +14,11 @@ import com.yigit.requestms.common.ui.MainLayout;
 import com.yigit.requestms.request.ui.PoStatusPresentation;
 import com.yigit.requestms.workflow.dto.TaskSummaryDto;
 import com.yigit.requestms.workflow.service.WorkflowService;
+import com.yigit.requestms.workflow.ui.DeadlinePresentation;
 import jakarta.annotation.security.RolesAllowed;
 
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 
 @Route(value = "dev/available", layout = MainLayout.class)
 @PageTitle("Available Tasks")
@@ -36,8 +38,9 @@ public class AvailableTasksView extends VerticalLayout {
         configureGrid();
 
         add(new H2("Unassigned tasks"),
-                new Paragraph("Claiming a task assigns it to you. "
-                        + "Higher scores are more urgent."),
+                new Paragraph("Claiming a task assigns it to you. The deadline "
+                        + "was set when the work was scheduled, so it is already "
+                        + "running."),
                 grid);
     }
 
@@ -49,6 +52,14 @@ public class AvailableTasksView extends VerticalLayout {
         grid.addComponentColumn(dto -> PoStatusPresentation.scoreBadge(dto.priorityScore()))
                 .setHeader("Score")
                 .setWidth("170px")
+                .setFlexGrow(0);
+
+        // The deadline is here as well as on the board, because it is part of
+        // what a developer is agreeing to by claiming: one of these may be a
+        // week away and another already late.
+        grid.addComponentColumn(DeadlinePresentation::badge)
+                .setHeader("Due")
+                .setWidth("200px")
                 .setFlexGrow(0);
 
         grid.addColumn(dto -> dto.createdAt().format(DATE_FORMAT))
@@ -64,7 +75,9 @@ public class AvailableTasksView extends VerticalLayout {
         grid.setEmptyStateText("No unassigned tasks right now.");
 
         grid.setItemsPageable(
-                workflowService::listUnclaimed,
+                pageable -> workflowService.listUnclaimed(pageable).stream()
+                        .sorted(Comparator.comparing(DeadlinePresentation::sortKey))
+                        .toList(),
                 query -> (int) workflowService.countUnclaimed());
     }
 

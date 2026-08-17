@@ -7,6 +7,7 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -20,8 +21,12 @@ import com.yigit.requestms.request.ui.PoStatusPresentation;
 import com.yigit.requestms.workflow.dto.TaskSummaryDto;
 import com.yigit.requestms.workflow.enums.WorkflowStatus;
 import com.yigit.requestms.workflow.service.WorkflowService;
+import com.yigit.requestms.workflow.ui.DeadlinePresentation;
 import com.yigit.requestms.workflow.ui.WorkflowStatusPresentation;
 import jakarta.annotation.security.RolesAllowed;
+
+import java.util.Comparator;
+import java.util.List;
 
 @Route(value = "dev/tasks", layout = MainLayout.class)
 @PageTitle("My Tasks")
@@ -31,6 +36,7 @@ public class MyTasksView extends VerticalLayout {
     private final WorkflowService workflowService;
     private final Grid<TaskSummaryDto> grid = new Grid<>();
     private final Tabs tabs = new Tabs();
+    private final Span overdueBanner = new Span();
 
     // Null means every stage; the tabs carry the filter rather than a separate
     // control, because a developer is always looking at one stage at a time.
@@ -40,10 +46,34 @@ public class MyTasksView extends VerticalLayout {
         this.workflowService = workflowService;
 
         setSizeFull();
+        configureBanner();
         configureTabs();
         configureGrid();
 
-        add(new H2("My tasks"), tabs, grid);
+        add(new H2("My tasks"), overdueBanner, tabs, grid);
+    }
+
+    private void configureBanner() {
+        overdueBanner.getStyle()
+                .set("color", "#a52020")
+                .set("background-color", "#fdeaea")
+                .set("border-radius", "6px")
+                .set("padding", "0.6em 1em")
+                .set("font-weight", "500")
+                .set("display", "inline-block");
+        overdueBanner.setVisible(false);
+    }
+
+    private void refreshBanner() {
+        long overdue = workflowService.listMyTasks(null, org.springframework.data.domain.Pageable.unpaged())
+                .stream()
+                .filter(TaskSummaryDto::isOverdue)
+                .count();
+
+        overdueBanner.setVisible(overdue > 0);
+        overdueBanner.setText(overdue == 1
+                ? "1 task is past its deadline."
+                : overdue + " tasks are past their deadline.");
     }
 
     private void configureTabs() {
@@ -70,6 +100,11 @@ public class MyTasksView extends VerticalLayout {
                 .setWidth("170px")
                 .setFlexGrow(0);
 
+        grid.addComponentColumn(DeadlinePresentation::badge)
+                .setHeader("Due")
+                .setWidth("200px")
+                .setFlexGrow(0);
+
         grid.addComponentColumn(dto -> WorkflowStatusPresentation.badge(dto.status()))
                 .setHeader("Stage")
                 .setWidth("150px")
@@ -83,14 +118,28 @@ public class MyTasksView extends VerticalLayout {
         grid.setSizeFull();
         grid.setEmptyStateText("Nothing here. Take something from the available tasks.");
 
+        // Sorted in memory rather than in the query: a developer's board holds
+        // the handful of tasks assigned to one person, and sorting a page that
+        // small costs nothing while keeping the ordering rule in one place.
         grid.setItemsPageable(
-                pageable -> workflowService.listMyTasks(selectedStatus, pageable),
+                pageable -> loadSorted(pageable),
                 query -> (int) workflowService.countMyTasks(selectedStatus));
+
+        refreshBanner();
+    }
+
+    private List<TaskSummaryDto> loadSorted(org.springframework.data.domain.Pageable pageable) {
+        return workflowService.listMyTasks(selectedStatus, pageable).stream()
+                .sorted(Comparator.comparing(DeadlinePresentation::sortKey))
+                .toList();
     }
 
     // One button per allowed target, taken from the enum rather than written
     // out per stage. When the rules change the board follows without being
     // edited, and a stage with nowhere to go renders nothing.
+    //
+    // A task past its deadline keeps every button it had: running late is a
+    // reason to finish it, not a reason to be unable to.
     private HorizontalLayout actionColumn(TaskSummaryDto dto) {
         HorizontalLayout actions = new HorizontalLayout();
 
@@ -138,5 +187,6 @@ public class MyTasksView extends VerticalLayout {
                         3000, Notification.Position.BOTTOM_END)
                 .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
         grid.getDataProvider().refreshAll();
+        refreshBanner();
     }
 }
