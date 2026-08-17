@@ -6,8 +6,8 @@ import com.yigit.requestms.request.enums.RequestStatus;
 import com.yigit.requestms.request.exception.InvalidRequestTransitionException;
 import com.yigit.requestms.request.exception.RequestNotFoundException;
 import com.yigit.requestms.request.repository.RequestRepository;
-import com.yigit.requestms.user.entity.UserEntity;
 import com.yigit.requestms.request.service.RequestAuditService;
+import com.yigit.requestms.user.entity.UserEntity;
 import com.yigit.requestms.user.enums.Role;
 import com.yigit.requestms.user.enums.SecurityQuestion;
 import com.yigit.requestms.workflow.entity.WorkflowEntity;
@@ -158,7 +158,7 @@ class WorkflowServiceTest {
     void claimAssignsSessionUser() {
         WorkflowEntity task = unclaimedTask();
 
-        when(workflowRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        when(workflowRepository.findByIdForUpdate(TASK_ID)).thenReturn(Optional.of(task));
         when(currentUserService.require()).thenReturn(developer);
 
         workflowService.claim(TASK_ID);
@@ -175,7 +175,7 @@ class WorkflowServiceTest {
         WorkflowEntity task = unclaimedTask();
         task.assignTo(otherDeveloper);
 
-        when(workflowRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        when(workflowRepository.findByIdForUpdate(TASK_ID)).thenReturn(Optional.of(task));
 
         assertThatThrownBy(() -> workflowService.claim(TASK_ID))
                 .isInstanceOf(TaskAlreadyClaimedException.class);
@@ -186,7 +186,7 @@ class WorkflowServiceTest {
     @Test
     @DisplayName("refuses a task that does not exist")
     void claimingAMissingTaskIsRefused() {
-        when(workflowRepository.findById(TASK_ID)).thenReturn(Optional.empty());
+        when(workflowRepository.findByIdForUpdate(TASK_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> workflowService.claim(TASK_ID))
                 .isInstanceOf(TaskNotFoundException.class);

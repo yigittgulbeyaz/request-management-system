@@ -7,8 +7,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 
 import java.util.List;
+import java.util.Optional;
+
 
 public interface WorkflowRepository extends JpaRepository<WorkflowEntity, Long> {
 
@@ -53,4 +57,12 @@ public interface WorkflowRepository extends JpaRepository<WorkflowEntity, Long> 
 
     @Query("SELECT COUNT(w) FROM WorkflowEntity w WHERE w.developer IS NULL")
     long countUnclaimed();
+
+    // Reads the row and holds it until the transaction ends. Two developers
+    // claiming at the same moment both reach this line; the second waits here
+    // rather than reading a row the first is about to change, and finds it
+    // taken when it finally reads.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT w FROM WorkflowEntity w WHERE w.id = :taskId")
+    Optional<WorkflowEntity> findByIdForUpdate(@Param("taskId") Long taskId);
 }

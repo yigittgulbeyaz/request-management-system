@@ -89,12 +89,14 @@ public class WorkflowService {
         return workflowRepository.countUnclaimed();
     }
 
-    // Two developers can reach this at the same moment and both see the task as
-    // free. Checking again after loading narrows the window but does not close
-    // it; row locking does, and arrives with the concurrency work.
+    // The check and the write have to see the same state, so the row is locked
+    // for the whole of it. Without the lock two developers both read an
+    // unclaimed task, both pass the check, and the second write silently
+    // replaces the first: the loser is never told they lost.
     @Transactional
     public void claim(Long taskId) {
-        WorkflowEntity task = requireTask(taskId);
+        WorkflowEntity task = workflowRepository.findByIdForUpdate(taskId)
+                .orElseThrow(() -> new TaskNotFoundException(taskId));
 
         if (task.getDeveloper() != null) {
             throw new TaskAlreadyClaimedException(taskId);
