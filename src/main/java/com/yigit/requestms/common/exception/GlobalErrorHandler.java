@@ -33,8 +33,11 @@ public class GlobalErrorHandler implements ErrorHandler {
         show(ErrorMessages.forCode(null));
     }
 
-    // Vaadin wraps what a listener threw, and the wrapper says nothing useful.
-    private Throwable unwrap(Throwable throwable) {
+    // Vaadin wraps what a listener threw, sometimes more than once. Package
+    // private and static so the unwrapping can be tested on its own: the rest
+    // of this class needs a live UI, and what matters here is finding the rule
+    // that was broken inside whatever it arrived in.
+    static Throwable unwrap(Throwable throwable) {
         Throwable current = throwable;
         while (current.getCause() != null && !(current instanceof BaseException)) {
             current = current.getCause();
