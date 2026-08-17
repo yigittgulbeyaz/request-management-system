@@ -16,6 +16,7 @@ import com.yigit.requestms.workflow.exception.TaskNotFoundException;
 import com.yigit.requestms.workflow.exception.WorkflowAlreadyExistsException;
 import com.yigit.requestms.workflow.repository.WorkflowRepository;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
+// No class-level restriction here, unlike the other services: conversion is the
+// product owner's decision and everything after it is the developer's work, so
+// the roles are declared per method.
 @Service
 public class WorkflowService {
 
@@ -49,6 +53,7 @@ public class WorkflowService {
     // someone takes it, which is what lets developers pull work rather than
     // only receive it.
     @Transactional
+    @PreAuthorize("hasRole('PRODUCT_OWNER')")
     public Long convertToWorkflow(Long requestId) {
         RequestEntity request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new RequestNotFoundException(requestId));
@@ -69,22 +74,26 @@ public class WorkflowService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('DEVELOPER')")
     public List<TaskSummaryDto> listMyTasks(WorkflowStatus status, Pageable pageable) {
         return workflowRepository.findAssignedTo(
                 currentUserService.requireId(), status, pageable);
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('DEVELOPER')")
     public long countMyTasks(WorkflowStatus status) {
         return workflowRepository.countAssignedTo(currentUserService.requireId(), status);
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('DEVELOPER')")
     public List<TaskSummaryDto> listUnclaimed(Pageable pageable) {
         return workflowRepository.findUnclaimed(pageable);
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('DEVELOPER')")
     public long countUnclaimed() {
         return workflowRepository.countUnclaimed();
     }
@@ -94,6 +103,7 @@ public class WorkflowService {
     // unclaimed task, both pass the check, and the second write silently
     // replaces the first: the loser is never told they lost.
     @Transactional
+    @PreAuthorize("hasRole('DEVELOPER')")
     public void claim(Long taskId) {
         WorkflowEntity task = workflowRepository.findByIdForUpdate(taskId)
                 .orElseThrow(() -> new TaskNotFoundException(taskId));
@@ -112,6 +122,7 @@ public class WorkflowService {
     // the whole of the decision, because there is no reviewer role here to put
     // an approval step behind.
     @Transactional
+    @PreAuthorize("hasRole('DEVELOPER')")
     public void advance(Long taskId, WorkflowStatus target) {
         WorkflowEntity task = requireTask(taskId);
         requireOwnership(task);
@@ -138,14 +149,15 @@ public class WorkflowService {
                 .orElseThrow(() -> new TaskNotFoundException(taskId));
     }
 
+    // The role says a developer may advance a task; this says it must be their
+    // own. Two questions, two checks: one about who is asking, one about what
+    // they are asking for.
+    //
     // Compares ids rather than entities. The developer association is lazy, so
     // the getter hands back a proxy whose own field is not populated; equals on
-    // it reads a null id and refuses a task the caller does own. Reading the id
-    // forces the proxy to load first.
-    //
-    // Objects.equals rather than a direct call: an id is null on an entity that
-    // has not been persisted, and dereferencing it would fail before the
-    // comparison ever ran.
+    // it reads a null id and refuses a task the caller does own. Objects.equals
+    // because an id is null on an entity that has not been persisted, and
+    // dereferencing it would fail before the comparison ever ran.
     private void requireOwnership(WorkflowEntity task) {
         UserEntity assignee = task.getDeveloper();
         if (assignee == null

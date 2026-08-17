@@ -10,12 +10,16 @@ import com.yigit.requestms.request.mapper.RequestMapper;
 import com.yigit.requestms.request.repository.RequestRepository;
 import com.yigit.requestms.user.entity.UserEntity;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+// The customer's own view of their own requests. Ownership is still checked
+// inside each method: the role says who may ask, not whose data they get.
 @Service
+@PreAuthorize("hasRole('CUSTOMER')")
 public class RequestService {
 
     private final RequestRepository requestRepository;

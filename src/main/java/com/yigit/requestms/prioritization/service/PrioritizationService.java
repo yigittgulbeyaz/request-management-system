@@ -14,10 +14,12 @@ import com.yigit.requestms.request.exception.RequestNotFoundException;
 import com.yigit.requestms.request.repository.RequestRepository;
 import com.yigit.requestms.request.service.RequestAuditService;
 import com.yigit.requestms.user.entity.UserEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@PreAuthorize("hasRole('PRODUCT_OWNER')")
 public class PrioritizationService {
 
     private final RequestRepository requestRepository;

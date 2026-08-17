@@ -19,6 +19,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -38,6 +41,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 //
 // The rows it writes are removed afterwards. Nothing here is visible to a user,
 // but this test is not read-only.
+//
+// No @WithMockUser on the class: it fills the context of the thread running the
+// test, and the work happens in a pool. Each thread authenticates itself below.
 @SpringBootTest
 @ActiveProfiles("test")
 class WorkflowConcurrencyTest {
@@ -159,6 +165,15 @@ class WorkflowConcurrencyTest {
         return () -> {
             try {
                 actingAs.set(developer);
+
+                // Each thread authenticates itself, because a pooled thread
+                // inherits nothing from the one that submitted the work and a
+                // method behind @PreAuthorize would find an empty context.
+                SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                                developer.getEmail(), "n/a",
+                                List.of(new SimpleGrantedAuthority("ROLE_DEVELOPER"))));
+
                 startTogether.await();
 
                 // No lock around this call. Both threads enter claim() at the
@@ -171,6 +186,7 @@ class WorkflowConcurrencyTest {
             } catch (Throwable e) {
                 unexpected.set(e);
             } finally {
+                SecurityContextHolder.clearContext();
                 actingAs.remove();
                 bothFinished.countDown();
             }

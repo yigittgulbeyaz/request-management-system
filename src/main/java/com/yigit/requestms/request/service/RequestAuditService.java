@@ -15,6 +15,10 @@ import org.springframework.stereotype.Service;
 // No @Transactional of its own: these calls join the transaction of the change
 // they describe. A trail entry that survives a rolled-back change would be a
 // record of something that never happened.
+//
+// No @PreAuthorize: this is called by services that have already checked, and
+// annotating it would demand a role from a caller that is really the system
+// writing its own record.
 @Service
 public class RequestAuditService {
 

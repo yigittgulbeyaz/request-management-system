@@ -10,15 +10,17 @@ import com.yigit.requestms.request.repository.RequestRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-// Kept apart from RequestService: that one answers "my requests" and resolves
-// the customer from the session, this one reads and acts across every customer.
-// Merging them would put two different authorisation rules behind one class.
+// Every method here is the product owner's work. Declared on the class rather
+// than repeated per method: a method added later inherits the restriction
+// instead of starting unprotected.
 @Service
+@PreAuthorize("hasRole('PRODUCT_OWNER')")
 public class PoRequestService {
 
     private static final String SCORE_PROPERTY = "p.priorityScore";
