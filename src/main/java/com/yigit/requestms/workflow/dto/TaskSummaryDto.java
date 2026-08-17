@@ -14,6 +14,22 @@ public record TaskSummaryDto(
         Integer priorityScore,
         WorkflowStatus status,
         String developerName,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime deadline
 ) {
+
+    // Null on tasks that predate the rule, and never overdue once finished:
+    // a task delivered late is late, but it is not still running out of time.
+    public boolean isOverdue() {
+        return deadline != null
+                && status != WorkflowStatus.DONE
+                && LocalDateTime.now().isAfter(deadline);
+    }
+
+    public boolean isDueSoon() {
+        return deadline != null
+                && status != WorkflowStatus.DONE
+                && !isOverdue()
+                && LocalDateTime.now().plusDays(2).isAfter(deadline);
+    }
 }

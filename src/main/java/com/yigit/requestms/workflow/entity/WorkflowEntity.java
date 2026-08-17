@@ -52,13 +52,21 @@ public class WorkflowEntity {
     @Column(name = "ASSIGNED_AT")
     private LocalDateTime assignedAt;
 
+    // Set at conversion and never moved. The score answers how urgent the work
+    // is, and this is the promise that follows from it: recomputing it later
+    // would let a change to the formula quietly rewrite commitments already
+    // made.
+    @Column(name = "DEADLINE")
+    private LocalDateTime deadline;
+
     protected WorkflowEntity() {
     }
 
-    public WorkflowEntity(RequestEntity request) {
+    public WorkflowEntity(RequestEntity request, LocalDateTime deadline) {
         this.request = request;
         this.status = WorkflowStatus.BACKLOG;
         this.createdAt = LocalDateTime.now();
+        this.deadline = deadline;
     }
 
     public Long getId() {
@@ -83,6 +91,19 @@ public class WorkflowEntity {
 
     public LocalDateTime getAssignedAt() {
         return assignedAt;
+    }
+
+    public LocalDateTime getDeadline() {
+        return deadline;
+    }
+
+    // Null on tasks that predate the rule, and never overdue once the work is
+    // finished: a task delivered late is late, but it is not still running out
+    // of time.
+    public boolean isOverdue() {
+        return deadline != null
+                && status != WorkflowStatus.DONE
+                && LocalDateTime.now().isAfter(deadline);
     }
 
     // Assignment sets both fields together, which the schema also enforces:

@@ -1,6 +1,8 @@
 package com.yigit.requestms.workflow.service;
 
 import com.yigit.requestms.common.security.CurrentUserService;
+import com.yigit.requestms.prioritization.entity.PrioritizationEntity;
+import com.yigit.requestms.prioritization.repository.PrioritizationRepository;
 import com.yigit.requestms.request.entity.RequestEntity;
 import com.yigit.requestms.request.enums.RequestStatus;
 import com.yigit.requestms.request.exception.InvalidRequestTransitionException;
@@ -28,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,6 +53,9 @@ class WorkflowServiceTest {
 
     @Mock
     private WorkflowRepository workflowRepository;
+
+    @Mock
+    private PrioritizationRepository prioritizationRepository;
 
     @Mock
     private CurrentUserService currentUserService;
@@ -80,6 +86,8 @@ class WorkflowServiceTest {
 
         when(requestRepository.findById(REQUEST_ID)).thenReturn(Optional.of(request));
         when(workflowRepository.existsByRequestId(REQUEST_ID)).thenReturn(false);
+        when(prioritizationRepository.findByRequestId(REQUEST_ID))
+                .thenReturn(Optional.of(scoring(request, 3, 4)));
         when(workflowRepository.save(any(WorkflowEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -102,12 +110,40 @@ class WorkflowServiceTest {
 
         when(requestRepository.findById(REQUEST_ID)).thenReturn(Optional.of(request));
         when(workflowRepository.existsByRequestId(REQUEST_ID)).thenReturn(false);
+        when(prioritizationRepository.findByRequestId(REQUEST_ID))
+                .thenReturn(Optional.of(scoring(request, 3, 4)));
         when(workflowRepository.save(any(WorkflowEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         workflowService.convertToWorkflow(REQUEST_ID);
 
         assertThat(request.getStatus()).isEqualTo(RequestStatus.IN_WORKFLOW);
+    }
+
+    @Test
+    @DisplayName("a critical request gets days where a low one gets weeks")
+    void deadlineFollowsTheScore() {
+        RequestEntity critical = prioritizedRequest();
+
+        when(requestRepository.findById(REQUEST_ID)).thenReturn(Optional.of(critical));
+        when(workflowRepository.existsByRequestId(REQUEST_ID)).thenReturn(false);
+        when(prioritizationRepository.findByRequestId(REQUEST_ID))
+                .thenReturn(Optional.of(scoring(critical, 5, 5)));
+        when(workflowRepository.save(any(WorkflowEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        workflowService.convertToWorkflow(REQUEST_ID);
+
+        ArgumentCaptor<WorkflowEntity> saved = ArgumentCaptor.forClass(WorkflowEntity.class);
+        verify(workflowRepository).save(saved.capture());
+
+        // Twenty-five is critical, which the band gives two days. Asserting the
+        // day rather than the exact instant: the promise is a date, not a
+        // timestamp anyone will hold to the second.
+        assertThat(saved.getValue().getDeadline())
+                .isNotNull()
+                .isAfter(LocalDateTime.now().plusDays(1))
+                .isBefore(LocalDateTime.now().plusDays(3));
     }
 
     @Test
@@ -170,6 +206,23 @@ class WorkflowServiceTest {
     }
 
     @Test
+    @DisplayName("claiming does not move the deadline")
+    void claimingLeavesTheDeadlineAlone() {
+        WorkflowEntity task = unclaimedTask();
+        LocalDateTime promised = task.getDeadline();
+
+        when(workflowRepository.findByIdForUpdate(TASK_ID)).thenReturn(Optional.of(task));
+        when(currentUserService.require()).thenReturn(developer);
+
+        workflowService.claim(TASK_ID);
+
+        // A developer inherits the promise, they do not make one by taking the
+        // task. Resetting the clock on assignment would let work sit in the
+        // backlog for a month and still be on time.
+        assertThat(task.getDeadline()).isEqualTo(promised);
+    }
+
+    @Test
     @DisplayName("refuses a task someone else already took")
     void claimingATakenTaskIsRefused() {
         WorkflowEntity task = unclaimedTask();
@@ -224,6 +277,21 @@ class WorkflowServiceTest {
         // report reads.
         assertThat(task.getRequest().getStatus()).isEqualTo(RequestStatus.CLOSED);
         assertThat(task.getRequest().getClosedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("a finished task stops being overdue")
+    void finishedWorkIsNotStillRunningLate() {
+        WorkflowEntity task = taskDueAt(LocalDateTime.now().minusDays(3));
+        assertThat(task.isOverdue()).isTrue();
+
+        task.transitionTo(WorkflowStatus.IN_PROGRESS);
+        task.transitionTo(WorkflowStatus.TESTING);
+        task.transitionTo(WorkflowStatus.DONE);
+
+        // Delivered late is late, and the report will say so; it is not still
+        // running out of time.
+        assertThat(task.isOverdue()).isFalse();
     }
 
     @Test
@@ -282,9 +350,13 @@ class WorkflowServiceTest {
     }
 
     private WorkflowEntity unclaimedTask() {
+        return taskDueAt(LocalDateTime.now().plusDays(10));
+    }
+
+    private WorkflowEntity taskDueAt(LocalDateTime deadline) {
         RequestEntity request = prioritizedRequest();
         request.transitionTo(RequestStatus.IN_WORKFLOW);
-        return new WorkflowEntity(request);
+        return new WorkflowEntity(request, deadline);
     }
 
     private WorkflowEntity claimedTask() {
@@ -293,23 +365,33 @@ class WorkflowServiceTest {
         return task;
     }
 
+    // The virtual column is computed by the database, so a scoring built in
+    // memory has no score of its own. Reflection puts one there rather than
+    // opening a setter the application must never call.
+    private PrioritizationEntity scoring(RequestEntity request, int impact, int urgency) {
+        PrioritizationEntity entity =
+                new PrioritizationEntity(request, impact, urgency, developer);
+        assignField(entity, PrioritizationEntity.class, "priorityScore", impact * urgency);
+        return entity;
+    }
+
     private UserEntity user(String name, String email, Role role, Long id) {
         UserEntity user = new UserEntity(name, email, "hash", role,
                 SecurityQuestion.BIRTH_CITY, "answerHash");
-        assignId(user, id);
+        assignField(user, UserEntity.class, "id", id);
         return user;
     }
 
-    // The entity has no id setter on purpose: Hibernate assigns it. Ownership
-    // is compared by id, so a test that never persists still has to supply one,
-    // and reflection is the smaller concession of the two.
-    private void assignId(UserEntity user, Long id) {
+    // The entities have no setters for these on purpose: one is assigned by
+    // Hibernate, the other computed by the database. A test that never persists
+    // still has to supply them, and reflection is the smaller concession.
+    private void assignField(Object target, Class<?> type, String name, Object value) {
         try {
-            Field field = UserEntity.class.getDeclaredField("id");
+            Field field = type.getDeclaredField(name);
             field.setAccessible(true);
-            field.set(user, id);
+            field.set(target, value);
         } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Could not set id on UserEntity", e);
+            throw new IllegalStateException("Could not set " + name, e);
         }
     }
 }

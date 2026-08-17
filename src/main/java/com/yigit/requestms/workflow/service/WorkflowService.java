@@ -1,6 +1,8 @@
 package com.yigit.requestms.workflow.service;
 
 import com.yigit.requestms.common.security.CurrentUserService;
+import com.yigit.requestms.prioritization.enums.PriorityBand;
+import com.yigit.requestms.prioritization.repository.PrioritizationRepository;
 import com.yigit.requestms.request.entity.RequestEntity;
 import com.yigit.requestms.request.enums.RequestStatus;
 import com.yigit.requestms.request.exception.RequestNotFoundException;
@@ -32,15 +34,18 @@ public class WorkflowService {
 
     private final RequestRepository requestRepository;
     private final WorkflowRepository workflowRepository;
+    private final PrioritizationRepository prioritizationRepository;
     private final CurrentUserService currentUserService;
     private final RequestAuditService auditService;
 
     public WorkflowService(RequestRepository requestRepository,
                            WorkflowRepository workflowRepository,
+                           PrioritizationRepository prioritizationRepository,
                            CurrentUserService currentUserService,
                            RequestAuditService auditService) {
         this.requestRepository = requestRepository;
         this.workflowRepository = workflowRepository;
+        this.prioritizationRepository = prioritizationRepository;
         this.currentUserService = currentUserService;
         this.auditService = auditService;
     }
@@ -70,7 +75,8 @@ public class WorkflowService {
         auditService.recordTransition(request, previous, RequestStatus.IN_WORKFLOW,
                 currentUserService.require());
 
-        return workflowRepository.save(new WorkflowEntity(request)).getId();
+        return workflowRepository.save(new WorkflowEntity(request, deadlineFor(requestId)))
+                .getId();
     }
 
     @Transactional(readOnly = true)
@@ -142,6 +148,20 @@ public class WorkflowService {
             auditService.notify(request.getCustomer(),
                     "Your request has been completed.", request);
         }
+    }
+
+    // The deadline is the owner's commitment, made when the work is scheduled
+    // rather than when someone picks it up: a developer inherits a promise,
+    // they do not make one by taking the task.
+    //
+    // The score is read here rather than passed in, so a caller cannot send a
+    // different one than the database holds.
+    private LocalDateTime deadlineFor(Long requestId) {
+        return prioritizationRepository.findByRequestId(requestId)
+                .map(scoring -> PriorityBand.ofScore(scoring.getPriorityScore()))
+                .map(band -> LocalDateTime.now().plusDays(band.getAllowedDays()))
+                .orElseThrow(() -> new IllegalStateException(
+                        "Unscored request reached conversion: " + requestId));
     }
 
     private WorkflowEntity requireTask(Long taskId) {

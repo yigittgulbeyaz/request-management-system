@@ -3,26 +3,34 @@ package com.yigit.requestms.workflow.repository;
 import com.yigit.requestms.workflow.dto.TaskSummaryDto;
 import com.yigit.requestms.workflow.entity.WorkflowEntity;
 import com.yigit.requestms.workflow.enums.WorkflowStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import jakarta.persistence.LockModeType;
-import org.springframework.data.jpa.repository.Lock;
 
 import java.util.List;
 import java.util.Optional;
-
 
 public interface WorkflowRepository extends JpaRepository<WorkflowEntity, Long> {
 
     boolean existsByRequestId(Long requestId);
 
+    // Reads the row and holds it until the transaction ends. Two developers
+    // claiming at the same moment both reach this line; the second waits here
+    // rather than reading a row the first is about to change, and finds it
+    // taken when it finally reads.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT w FROM WorkflowEntity w WHERE w.id = :taskId")
+    Optional<WorkflowEntity> findByIdForUpdate(@Param("taskId") Long taskId);
+
     // Same projection shape as the pool: one query for the page, and the
     // request's CLOB description stays in the database.
     @Query("""
             SELECT new com.yigit.requestms.workflow.dto.TaskSummaryDto(
-                w.id, r.id, r.title, p.priorityScore, w.status, d.nameSurname, w.createdAt)
+                w.id, r.id, r.title, p.priorityScore, w.status, d.nameSurname,
+                w.createdAt, w.deadline)
             FROM WorkflowEntity w
             JOIN w.request r
             LEFT JOIN PrioritizationEntity p ON p.request = r
@@ -47,7 +55,8 @@ public interface WorkflowRepository extends JpaRepository<WorkflowEntity, Long> 
     // than a parameter.
     @Query("""
             SELECT new com.yigit.requestms.workflow.dto.TaskSummaryDto(
-                w.id, r.id, r.title, p.priorityScore, w.status, NULL, w.createdAt)
+                w.id, r.id, r.title, p.priorityScore, w.status, NULL,
+                w.createdAt, w.deadline)
             FROM WorkflowEntity w
             JOIN w.request r
             LEFT JOIN PrioritizationEntity p ON p.request = r
@@ -57,12 +66,4 @@ public interface WorkflowRepository extends JpaRepository<WorkflowEntity, Long> 
 
     @Query("SELECT COUNT(w) FROM WorkflowEntity w WHERE w.developer IS NULL")
     long countUnclaimed();
-
-    // Reads the row and holds it until the transaction ends. Two developers
-    // claiming at the same moment both reach this line; the second waits here
-    // rather than reading a row the first is about to change, and finds it
-    // taken when it finally reads.
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT w FROM WorkflowEntity w WHERE w.id = :taskId")
-    Optional<WorkflowEntity> findByIdForUpdate(@Param("taskId") Long taskId);
 }

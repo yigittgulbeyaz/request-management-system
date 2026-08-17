@@ -25,6 +25,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -95,7 +96,8 @@ class WorkflowConcurrencyTest {
         request.transitionTo(RequestStatus.IN_WORKFLOW);
         requestRepository.save(request);
 
-        taskId = workflowRepository.save(new WorkflowEntity(request)).getId();
+        taskId = workflowRepository.save(
+                new WorkflowEntity(request, LocalDateTime.now().plusDays(10))).getId();
 
         Mockito.when(currentUserService.require()).thenAnswer(invocation -> actingAs.get());
     }

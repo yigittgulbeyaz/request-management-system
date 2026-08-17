@@ -171,7 +171,8 @@ public class PrioritizationFormView extends VerticalLayout implements BeforeEnte
     private StatusBadge.Tone bandTone(PriorityBand band) {
         return switch (band) {
             case LOW -> StatusBadge.Tone.POSITIVE;
-            case MEDIUM -> StatusBadge.Tone.WARNING;
+            case MEDIUM -> StatusBadge.Tone.ACTIVE;
+            case HIGH -> StatusBadge.Tone.WARNING;
             case CRITICAL -> StatusBadge.Tone.NEGATIVE;
         };
     }

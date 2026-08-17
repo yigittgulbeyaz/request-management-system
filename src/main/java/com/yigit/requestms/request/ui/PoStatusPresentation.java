@@ -34,10 +34,13 @@ public final class PoStatusPresentation {
         };
     }
 
+    // Low reads as green because there is nothing to worry about, not because
+    // it is good news: the colour answers "how soon", not "how welcome".
     private static StatusBadge.Tone scoreTone(PriorityBand band) {
         return switch (band) {
             case LOW -> StatusBadge.Tone.POSITIVE;
-            case MEDIUM -> StatusBadge.Tone.WARNING;
+            case MEDIUM -> StatusBadge.Tone.ACTIVE;
+            case HIGH -> StatusBadge.Tone.WARNING;
             case CRITICAL -> StatusBadge.Tone.NEGATIVE;
         };
     }

@@ -148,6 +148,7 @@ CREATE TABLE yigit_workflows (
     workflow_status VARCHAR2(30 CHAR)   DEFAULT 'BACKLOG' NOT NULL,
     created_at      TIMESTAMP           DEFAULT SYSTIMESTAMP NOT NULL,
     assigned_at     TIMESTAMP,
+    deadline        TIMESTAMP,
 
     CONSTRAINT yigit_pk_workflows
         PRIMARY KEY (task_id),
@@ -169,6 +170,7 @@ CREATE TABLE yigit_workflows (
 COMMENT ON TABLE  yigit_workflows IS 'Development tasks derived from prioritized requests';
 COMMENT ON COLUMN yigit_workflows.developer_id IS 'Nullable - a task may sit unclaimed in BACKLOG';
 COMMENT ON COLUMN yigit_workflows.assigned_at IS 'Supports cycle-time metrics; set together with developer_id';
+COMMENT ON COLUMN yigit_workflows.deadline IS 'Committed at conversion, derived from the priority score. Stored rather than computed so a change to the formula does not move promises already made.';
 
 
 --------------------------------------------------------------------------------
