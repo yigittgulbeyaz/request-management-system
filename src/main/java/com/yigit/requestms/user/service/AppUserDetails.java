@@ -17,7 +17,7 @@ public class AppUserDetails implements UserDetails {
     private final String passwordHash;
     private final boolean active;
     private final boolean locked;
-    private final boolean mustChangePassword;
+    private final boolean awaitingSetup;
     private final List<GrantedAuthority> authorities;
 
     public AppUserDetails(UserEntity user) {
@@ -26,7 +26,7 @@ public class AppUserDetails implements UserDetails {
         this.passwordHash = user.getPasswordHash();
         this.active = user.isActive();
         this.locked = user.isLocked();
-        this.mustChangePassword = user.isMustChangePassword();
+        this.awaitingSetup = user.isAwaitingSetup();
         this.authorities = List.of(new SimpleGrantedAuthority(user.getRole().asAuthority()));
     }
 
@@ -34,15 +34,14 @@ public class AppUserDetails implements UserDetails {
         return userId;
     }
 
-    public boolean isMustChangePassword() {
-        return mustChangePassword;
-    }
-
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return authorities;
     }
 
+    // Null while an account is waiting to be set up. Spring never compares
+    // against it because isEnabled already refused, but the field is honest
+    // about what the account has.
     @Override
     public String getPassword() {
         return passwordHash;
@@ -58,8 +57,11 @@ public class AppUserDetails implements UserDetails {
         return !locked;
     }
 
+    // An account waiting for setup has no password to check against. Reporting
+    // it as disabled puts the refusal where Spring already looks, rather than
+    // leaving a null hash to fail somewhere less predictable.
     @Override
     public boolean isEnabled() {
-        return active;
+        return active && !awaitingSetup;
     }
 }

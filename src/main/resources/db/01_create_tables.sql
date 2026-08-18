@@ -39,7 +39,6 @@ CREATE TABLE yigit_users (
     password_hash           VARCHAR2(255 CHAR)  NOT NULL,
     role                    VARCHAR2(20 CHAR)   NOT NULL,
     is_active               NUMBER(1)           DEFAULT 1 NOT NULL,
-    must_change_password    NUMBER(1)           DEFAULT 0 NOT NULL,
     failed_reset_attempts   NUMBER(1)           DEFAULT 0 NOT NULL,
     is_locked               NUMBER(1)           DEFAULT 0 NOT NULL,
     preferred_theme         VARCHAR2(10 CHAR)   DEFAULT 'light' NOT NULL,
@@ -58,8 +57,6 @@ CREATE TABLE yigit_users (
         CHECK (role IN ('CUSTOMER', 'PRODUCT_OWNER', 'DEVELOPER', 'ADMIN')),
     CONSTRAINT yigit_ck_users_active
         CHECK (is_active IN (0, 1)),
-    CONSTRAINT yigit_ck_users_chg_pwd
-        CHECK (must_change_password IN (0, 1)),
     CONSTRAINT yigit_ck_users_locked
         CHECK (is_locked IN (0, 1)),
     CONSTRAINT yigit_ck_users_attempts

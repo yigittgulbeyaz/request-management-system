@@ -45,9 +45,6 @@ public class UserEntity {
     @Column(name = "IS_ACTIVE", nullable = false)
     private boolean active = true;
 
-    @Column(name = "MUST_CHANGE_PASSWORD", nullable = false)
-    private boolean mustChangePassword = false;
-
     // Chosen during setup, not by whoever opened the account: a question whose
     // answer an administrator already knows proves nothing about who is asking.
     @Enumerated(EnumType.STRING)
@@ -155,14 +152,6 @@ public class UserEntity {
         this.active = active;
     }
 
-    public boolean isMustChangePassword() {
-        return mustChangePassword;
-    }
-
-    public void setMustChangePassword(boolean mustChangePassword) {
-        this.mustChangePassword = mustChangePassword;
-    }
-
     public SecurityQuestion getSecurityQuestion() {
         return securityQuestion;
     }
@@ -214,7 +203,6 @@ public class UserEntity {
         this.securityAnswerHash = answerHash;
         this.setupToken = null;
         this.setupTokenExpiresAt = null;
-        this.mustChangePassword = false;
         this.failedResetAttempts = 0;
         this.locked = false;
     }
@@ -227,7 +215,6 @@ public class UserEntity {
         this.securityAnswerHash = null;
         this.setupToken = token;
         this.setupTokenExpiresAt = expiresAt;
-        this.mustChangePassword = false;
         this.failedResetAttempts = 0;
         this.locked = false;
     }

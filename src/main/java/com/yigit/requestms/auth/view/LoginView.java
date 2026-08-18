@@ -1,5 +1,6 @@
 package com.yigit.requestms.auth.view;
 
+import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.login.LoginForm;
 import com.vaadin.flow.component.login.LoginI18n;
@@ -25,7 +26,9 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
         loginForm.setAction("login");
         loginForm.setI18n(buildI18n());
 
-        add(new H1("Request Management System"), loginForm);
+        add(new H1("Request Management System"),
+                loginForm,
+                new Anchor("setup", "Have a setup code?"));
     }
 
     // Wrong password, unknown account and locked account all produce the same

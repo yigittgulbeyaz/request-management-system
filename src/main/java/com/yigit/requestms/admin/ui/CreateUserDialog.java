@@ -1,5 +1,6 @@
 package com.yigit.requestms.admin.ui;
 
+import com.vaadin.flow.component.HasValidation;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -47,12 +48,7 @@ public class CreateUserDialog extends Dialog {
         add(content);
 
         save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        save.setEnabled(false);
-        save.addClickListener(e -> {
-            onCreate.accept(new CreateUserDto(
-                    nameSurname.getValue(), email.getValue(), role.getValue()));
-            close();
-        });
+        save.addClickListener(e -> submit(onCreate));
 
         Button cancel = new Button("Cancel", e -> close());
         cancel.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
@@ -61,25 +57,59 @@ public class CreateUserDialog extends Dialog {
     }
 
     private void configureFields() {
-        nameSurname.setRequired(true);
+        nameSurname.setRequiredIndicatorVisible(true);
         nameSurname.setMaxLength(100);
-        nameSurname.addValueChangeListener(e -> refreshSaveState());
+        nameSurname.addValueChangeListener(e -> nameSurname.setInvalid(false));
 
-        email.setRequired(true);
+        email.setRequiredIndicatorVisible(true);
         email.setMaxLength(100);
-        email.setErrorMessage("Enter a valid email address");
-        email.addValueChangeListener(e -> refreshSaveState());
+        email.addValueChangeListener(e -> email.setInvalid(false));
 
         role.setLabel("Role");
         role.setItems(Role.values());
         role.setItemLabelGenerator(UserStatePresentation::label);
-        role.addValueChangeListener(e -> refreshSaveState());
+        role.setRequiredIndicatorVisible(true);
+        role.addValueChangeListener(e -> role.setInvalid(false));
     }
 
-    // Enabled only once every field has something in it, so the failure a user
-    // meets first is a missing field on screen rather than a rejected save.
-    private void refreshSaveState() {
-        save.setEnabled(!nameSurname.isEmpty() && !email.isEmpty()
-                && !email.isInvalid() && role.getValue() != null);
+    // The button stays enabled and the form answers on submit. A disabled
+    // button with no explanation leaves someone guessing which field it is
+    // waiting on, and the guess is usually wrong.
+    private void submit(Consumer<CreateUserDto> onCreate) {
+        if (!validate()) {
+            return;
+        }
+
+        onCreate.accept(new CreateUserDto(
+                nameSurname.getValue(), email.getValue(), role.getValue()));
+        close();
+    }
+
+    // Every field is checked rather than stopping at the first, so someone who
+    // got two things wrong finds out about both at once.
+    private boolean validate() {
+        boolean valid = true;
+
+        if (nameSurname.isEmpty()) {
+            valid = fail(nameSurname, "Enter the person's name");
+        }
+
+        if (email.isEmpty()) {
+            valid = fail(email, "Enter an email address");
+        } else if (email.isInvalid()) {
+            valid = fail(email, "That does not look like an email address");
+        }
+
+        if (role.getValue() == null) {
+            valid = fail(role, "Pick a role");
+        }
+
+        return valid;
+    }
+
+    private boolean fail(HasValidation field, String message) {
+        field.setErrorMessage(message);
+        field.setInvalid(true);
+        return false;
     }
 }

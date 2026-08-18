@@ -27,7 +27,11 @@ public final class ErrorMessages {
             Map.entry("USER_NOT_FOUND", "That user could not be found."),
             Map.entry("DUPLICATE_EMAIL", "An account already uses that email address."),
             Map.entry("LAST_ADMIN_PROTECTED",
-                    "The only remaining administrator cannot be demoted or deactivated.")
+                    "The only remaining administrator cannot be demoted or deactivated."),
+            Map.entry("INVALID_SETUP_CODE",
+                    "That setup code is not valid. Ask an administrator for a new one."),
+            Map.entry("WEAK_PASSWORD",
+                    "A password needs at least 8 characters, including a letter and a digit.")
     );
 
     // What a user reads when something failed for a reason they cannot act on.
