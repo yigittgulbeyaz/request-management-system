@@ -24,10 +24,15 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
         setJustifyContentMode(JustifyContentMode.CENTER);
 
         loginForm.setAction("login");
+        // Vaadin's own forgot-password button raises an event rather than
+        // navigating, so it would need a listener to do what the link below
+        // already does. Two of them on one screen is one too many.
+        loginForm.setForgotPasswordButtonVisible(false);
         loginForm.setI18n(buildI18n());
 
         add(new H1("Request Management System"),
                 loginForm,
+                new Anchor("recover", "Forgotten your password?"),
                 new Anchor("setup", "Have a setup code?"));
     }
 
@@ -40,7 +45,6 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
         i18n.getForm().setUsername("Email");
         i18n.getForm().setPassword("Password");
         i18n.getForm().setSubmit("Sign in");
-        i18n.getForm().setForgotPassword("Forgot password?");
         i18n.getErrorMessage().setTitle("Sign-in failed");
         i18n.getErrorMessage().setMessage(
                 "Invalid credentials, or this account is unavailable.");

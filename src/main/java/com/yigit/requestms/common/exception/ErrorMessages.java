@@ -31,7 +31,10 @@ public final class ErrorMessages {
             Map.entry("INVALID_SETUP_CODE",
                     "That setup code is not valid. Ask an administrator for a new one."),
             Map.entry("WEAK_PASSWORD",
-                    "A password needs at least 8 characters, including a letter and a digit.")
+                    "A password needs at least 8 characters, including a letter and a digit."),
+            Map.entry("INVALID_SECURITY_ANSWER", "That answer does not match."),
+            Map.entry("ACCOUNT_LOCKED",
+                    "Too many incorrect answers. Ask an administrator to unlock the account.")
     );
 
     // What a user reads when something failed for a reason they cannot act on.
