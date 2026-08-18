@@ -1,10 +1,13 @@
 package com.yigit.requestms.common.exception;
 
+import com.yigit.requestms.admin.exception.CannotDemoteLastAdminException;
 import com.yigit.requestms.prioritization.exception.PrioritizationNotEditableException;
 import com.yigit.requestms.request.enums.RequestStatus;
 import com.yigit.requestms.request.exception.InvalidRequestTransitionException;
 import com.yigit.requestms.request.exception.RejectionReasonRequiredException;
 import com.yigit.requestms.request.exception.RequestNotFoundException;
+import com.yigit.requestms.user.exception.DuplicateEmailException;
+import com.yigit.requestms.user.exception.UserNotFoundException;
 import com.yigit.requestms.workflow.enums.WorkflowStatus;
 import com.yigit.requestms.workflow.exception.InvalidWorkflowTransitionException;
 import com.yigit.requestms.workflow.exception.TaskAlreadyClaimedException;
@@ -36,7 +39,10 @@ class ErrorMessagesTest {
                 new TaskNotFoundException(1L),
                 new TaskAlreadyClaimedException(1L),
                 new TaskNotAssignedToYouException(1L),
-                new UnauthenticatedException("no session")
+                new UnauthenticatedException("no session"),
+                new UserNotFoundException(1L),
+                new DuplicateEmailException("someone@example.com"),
+                new CannotDemoteLastAdminException()
         );
     }
 

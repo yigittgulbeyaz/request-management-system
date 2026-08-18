@@ -23,7 +23,11 @@ public final class ErrorMessages {
             Map.entry("TASK_NOT_FOUND", "That task could not be found."),
             Map.entry("TASK_ALREADY_CLAIMED", "Someone else took this task first."),
             Map.entry("TASK_NOT_YOURS", "This task is assigned to another developer."),
-            Map.entry("UNAUTHENTICATED", "Your session has ended. Please sign in again.")
+            Map.entry("UNAUTHENTICATED", "Your session has ended. Please sign in again."),
+            Map.entry("USER_NOT_FOUND", "That user could not be found."),
+            Map.entry("DUPLICATE_EMAIL", "An account already uses that email address."),
+            Map.entry("LAST_ADMIN_PROTECTED",
+                    "The only remaining administrator cannot be demoted or deactivated.")
     );
 
     // What a user reads when something failed for a reason they cannot act on.
