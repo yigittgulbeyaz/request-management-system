@@ -57,6 +57,9 @@ public class MainLayout extends AppLayout {
             nav.addItem(new SideNavItem("My Tasks", "dev/tasks"));
             nav.addItem(new SideNavItem("Available Tasks", "dev/available"));
         }
+        if (authenticationContext.hasRole("ADMIN")) {
+            nav.addItem(new SideNavItem("Users", "admin/users"));
+        }
         return nav;
     }
 }
