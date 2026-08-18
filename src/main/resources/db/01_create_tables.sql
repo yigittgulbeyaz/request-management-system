@@ -40,13 +40,15 @@ CREATE TABLE yigit_users (
     role                    VARCHAR2(20 CHAR)   NOT NULL,
     is_active               NUMBER(1)           DEFAULT 1 NOT NULL,
     must_change_password    NUMBER(1)           DEFAULT 0 NOT NULL,
-    security_question       VARCHAR2(100 CHAR)  NOT NULL,
-    security_answer_hash    VARCHAR2(255 CHAR)  NOT NULL,
     failed_reset_attempts   NUMBER(1)           DEFAULT 0 NOT NULL,
     is_locked               NUMBER(1)           DEFAULT 0 NOT NULL,
     preferred_theme         VARCHAR2(10 CHAR)   DEFAULT 'light' NOT NULL,
     preferred_language      VARCHAR2(5 CHAR)    DEFAULT 'tr' NOT NULL,
     created_at              TIMESTAMP           DEFAULT SYSTIMESTAMP NOT NULL,
+    security_question       VARCHAR2(100 CHAR),
+    security_answer_hash    VARCHAR2(255 CHAR),
+    setup_token             VARCHAR2(64 CHAR),
+    setup_token_expires_at  TIMESTAMP,
 
     CONSTRAINT yigit_pk_users
         PRIMARY KEY (user_id),

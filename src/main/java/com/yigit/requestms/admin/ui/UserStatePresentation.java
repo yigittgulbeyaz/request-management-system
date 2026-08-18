@@ -5,10 +5,10 @@ import com.yigit.requestms.admin.dto.AdminUserDto;
 import com.yigit.requestms.common.ui.StatusBadge;
 import com.yigit.requestms.user.enums.Role;
 
-// An account can be inactive, locked, awaiting a first sign-in, or none of
-// those, and the states are independent: locked is what the system did after
-// failed reset attempts, inactive is what an administrator decided. Showing
-// them as separate badges rather than one status keeps them from being read as
+// An account can be inactive, locked, waiting to be set up, or none of those,
+// and the states are independent: locked is what the system did after failed
+// reset attempts, inactive is what an administrator decided. Showing them as
+// separate badges rather than one status keeps them from being read as
 // alternatives.
 public final class UserStatePresentation {
 
@@ -26,8 +26,8 @@ public final class UserStatePresentation {
         if (user.locked()) {
             badges.add(new StatusBadge("Locked", StatusBadge.Tone.NEGATIVE));
         }
-        if (user.mustChangePassword()) {
-            badges.add(new StatusBadge("Temp password", StatusBadge.Tone.WARNING));
+        if (user.awaitingSetup()) {
+            badges.add(new StatusBadge("Awaiting setup", StatusBadge.Tone.WARNING));
         }
         if (badges.getComponentCount() == 0) {
             badges.add(new StatusBadge("Active", StatusBadge.Tone.POSITIVE));

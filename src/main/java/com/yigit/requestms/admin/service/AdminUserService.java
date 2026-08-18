@@ -12,10 +12,10 @@ import com.yigit.requestms.user.exception.UserNotFoundException;
 import com.yigit.requestms.user.repository.UserRepository;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 // Account administration, kept apart from UserService: that one answers a
@@ -28,18 +28,25 @@ import java.util.List;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminUserService {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final TemporaryPasswordGenerator passwordGenerator = new TemporaryPasswordGenerator();
+    // Long enough to hand over in person, short enough that a code left in a
+    // notebook stops working before anyone finds it.
+    private static final int SETUP_CODE_VALID_DAYS = 7;
 
-    public AdminUserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    private final UserRepository userRepository;
+    private final SetupCodeGenerator codeGenerator = new SetupCodeGenerator();
+
+    public AdminUserService(UserRepository userRepository) {
         this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional(readOnly = true)
     public List<AdminUserDto> list(Role role, String search, Pageable pageable) {
         return userRepository.findForAdmin(role, blankToNull(search), pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public long count(Role role, String search) {
+        return userRepository.countForAdmin(role, blankToNull(search));
     }
 
     @Transactional(readOnly = true)
@@ -53,19 +60,19 @@ public class AdminUserService {
                 user.getRole(),
                 user.isActive(),
                 user.isLocked(),
-                user.isMustChangePassword(),
+                user.isAwaitingSetup(),
                 user.getFailedResetAttempts(),
                 user.getSecurityQuestion(),
                 user.getCreatedAt());
     }
 
-    @Transactional(readOnly = true)
-    public long count(Role role, String search) {
-        return userRepository.countForAdmin(role, blankToNull(search));
-    }
-
+    // The account is opened without credentials. What an administrator gets
+    // back is a code to hand over, not a password to remember on someone
+    // else's behalf: the person who will use the account chooses what guards
+    // it, and the administrator's copy stops working the moment they do.
+    //
     // The email is checked before the insert so the user reads a sentence
-    // rather than a constraint violation, but the unique index is what actually
+    // rather than a constraint violation, but the unique index is what
     // guarantees it: two administrators creating the same address at the same
     // moment would both pass this check.
     @Transactional
@@ -76,22 +83,30 @@ public class AdminUserService {
             throw new DuplicateEmailException(email);
         }
 
-        String temporaryPassword = passwordGenerator.generate();
+        String code = codeGenerator.generate();
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(SETUP_CODE_VALID_DAYS);
 
         UserEntity user = new UserEntity(
-                form.nameSurname().trim(),
-                email,
-                passwordEncoder.encode(temporaryPassword),
-                form.role(),
-                form.securityQuestion(),
-                passwordEncoder.encode(normaliseAnswer(form.securityAnswer())));
+                form.nameSurname().trim(), email, form.role(), code, expiresAt);
 
-        user.setMustChangePassword(true);
         userRepository.save(user);
 
-        // Returned once and stored nowhere it can be read again. The hash is
-        // all that persists.
-        return new CreatedUserDto(user.getId(), user.getEmail(), temporaryPassword);
+        return new CreatedUserDto(user.getId(), user.getEmail(), code, expiresAt);
+    }
+
+    // Issued again when the first code expires or goes astray, and for an
+    // account that was locked out of its own recovery. Whatever the account had
+    // is discarded: a reissued code is a fresh start, not a second key.
+    @Transactional
+    public CreatedUserDto reissueSetupCode(Long userId) {
+        UserEntity user = require(userId);
+
+        String code = codeGenerator.generate();
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(SETUP_CODE_VALID_DAYS);
+
+        user.reissueSetupToken(code, expiresAt);
+
+        return new CreatedUserDto(user.getId(), user.getEmail(), code, expiresAt);
     }
 
     @Transactional
@@ -133,20 +148,15 @@ public class AdminUserService {
     // what an administrator decided. Unlocking does not reactivate, and
     // reactivating does not unlock.
     //
-    // The password is replaced along with the unlock because the account was
-    // locked by someone failing to prove they owned it, and the old password
-    // may be the reason they were trying.
+    // Only the lock is cleared. The account keeps its password, because being
+    // locked out of recovery says nothing about whether the owner still knows
+    // how to sign in; someone who has forgotten needs a new setup code, which
+    // is a separate decision.
     @Transactional
-    public CreatedUserDto unlockWithNewPassword(Long userId) {
+    public void unlock(Long userId) {
         UserEntity user = require(userId);
-        String temporaryPassword = passwordGenerator.generate();
-
         user.setLocked(false);
         user.setFailedResetAttempts(0);
-        user.setPasswordHash(passwordEncoder.encode(temporaryPassword));
-        user.setMustChangePassword(true);
-
-        return new CreatedUserDto(user.getId(), user.getEmail(), temporaryPassword);
     }
 
     private UserEntity require(Long userId) {
@@ -154,8 +164,9 @@ public class AdminUserService {
                 .orElseThrow(() -> new UserNotFoundException(userId));
     }
 
-    // Counts the others rather than the total, so an administrator acting on
-    // their own account is refused while one acting on a colleague is not.
+    // Counts the others rather than the total, so an administrator acting on a
+    // colleague is allowed where one acting on themselves as the last
+    // administrator is not.
     private void requireAnotherAdminRemains(UserEntity subject) {
         long activeAdmins = userRepository.countByRoleAndActiveTrue(Role.ADMIN);
         boolean subjectCounts = subject.isActive();
@@ -163,13 +174,6 @@ public class AdminUserService {
         if (activeAdmins - (subjectCounts ? 1 : 0) < 1) {
             throw new CannotDemoteLastAdminException();
         }
-    }
-
-    // The answer is compared after the same treatment it gets here, so a
-    // capital letter or a stray space at either end cannot lock someone out of
-    // their own account.
-    private String normaliseAnswer(String answer) {
-        return answer.trim().toLowerCase();
     }
 
     private String blankToNull(String value) {

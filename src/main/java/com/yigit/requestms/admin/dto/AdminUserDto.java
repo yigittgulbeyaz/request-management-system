@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 // One row of the user list. Carries no password material of any kind: an
 // administrator manages accounts, and nothing about managing them needs the
-// hashes.
+// hashes or the setup code.
 public record AdminUserDto(
         Long id,
         String nameSurname,
@@ -14,7 +14,7 @@ public record AdminUserDto(
         Role role,
         boolean active,
         boolean locked,
-        boolean mustChangePassword,
+        boolean awaitingSetup,
         LocalDateTime createdAt
 ) {
 }

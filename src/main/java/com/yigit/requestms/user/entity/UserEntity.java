@@ -31,7 +31,9 @@ public class UserEntity {
     @Column(name = "EMAIL", nullable = false, unique = true, length = 100)
     private String email;
 
-    @Column(name = "PASSWORD_HASH", nullable = false, length = 255)
+    // Null while the account is waiting to be set up. An administrator opens
+    // the account; the person who will use it chooses what guards it.
+    @Column(name = "PASSWORD_HASH", length = 255)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
@@ -46,11 +48,13 @@ public class UserEntity {
     @Column(name = "MUST_CHANGE_PASSWORD", nullable = false)
     private boolean mustChangePassword = false;
 
+    // Chosen during setup, not by whoever opened the account: a question whose
+    // answer an administrator already knows proves nothing about who is asking.
     @Enumerated(EnumType.STRING)
-    @Column(name = "SECURITY_QUESTION", nullable = false, length = 100)
+    @Column(name = "SECURITY_QUESTION", length = 100)
     private SecurityQuestion securityQuestion;
 
-    @Column(name = "SECURITY_ANSWER_HASH", nullable = false, length = 255)
+    @Column(name = "SECURITY_ANSWER_HASH", length = 255)
     private String securityAnswerHash;
 
     @Column(name = "FAILED_RESET_ATTEMPTS", nullable = false)
@@ -60,6 +64,15 @@ public class UserEntity {
     // attempts, inactive is an administrator's decision. Different fixes.
     @Column(name = "IS_LOCKED", nullable = false)
     private boolean locked = false;
+
+    // A one-time code handed over in person, because there is no mail server to
+    // send it through. Cleared the moment the account is set up, so a code that
+    // has been used is a code that no longer opens anything.
+    @Column(name = "SETUP_TOKEN", length = 64)
+    private String setupToken;
+
+    @Column(name = "SETUP_TOKEN_EXPIRES_AT")
+    private LocalDateTime setupTokenExpiresAt;
 
     @Column(name = "PREFERRED_THEME", nullable = false, length = 10)
     private String preferredTheme = "light";
@@ -73,8 +86,20 @@ public class UserEntity {
     protected UserEntity() {
     }
 
-    // Takes only the fields that have no sensible default, so a user cannot be
-    // constructed in a state the schema would reject.
+    // Opens an account nobody can sign into yet. The credentials arrive when
+    // the person holding the setup code supplies them.
+    public UserEntity(String nameSurname, String email, Role role,
+                      String setupToken, LocalDateTime setupTokenExpiresAt) {
+        this.nameSurname = nameSurname;
+        this.email = email;
+        this.role = role;
+        this.setupToken = setupToken;
+        this.setupTokenExpiresAt = setupTokenExpiresAt;
+        this.createdAt = LocalDateTime.now();
+    }
+
+    // For the seeded accounts, which arrive already set up because there is
+    // nobody to hand a code to when the schema is first filled.
     public UserEntity(String nameSurname, String email, String passwordHash, Role role,
                       SecurityQuestion securityQuestion, String securityAnswerHash) {
         this.nameSurname = nameSurname;
@@ -142,16 +167,8 @@ public class UserEntity {
         return securityQuestion;
     }
 
-    public void setSecurityQuestion(SecurityQuestion securityQuestion) {
-        this.securityQuestion = securityQuestion;
-    }
-
     public String getSecurityAnswerHash() {
         return securityAnswerHash;
-    }
-
-    public void setSecurityAnswerHash(String securityAnswerHash) {
-        this.securityAnswerHash = securityAnswerHash;
     }
 
     public int getFailedResetAttempts() {
@@ -168,6 +185,51 @@ public class UserEntity {
 
     public void setLocked(boolean locked) {
         this.locked = locked;
+    }
+
+    public String getSetupToken() {
+        return setupToken;
+    }
+
+    public LocalDateTime getSetupTokenExpiresAt() {
+        return setupTokenExpiresAt;
+    }
+
+    // An account is waiting when it has a code and no password. The two are
+    // mutually exclusive, which a database CHECK also enforces.
+    public boolean isAwaitingSetup() {
+        return setupToken != null;
+    }
+
+    public boolean isSetupTokenExpired() {
+        return setupTokenExpiresAt != null && LocalDateTime.now().isAfter(setupTokenExpiresAt);
+    }
+
+    // Everything the account was missing arrives at once, and the code that
+    // allowed it is destroyed in the same move: there is no window where both
+    // the code and the password open the account.
+    public void completeSetup(String passwordHash, SecurityQuestion question, String answerHash) {
+        this.passwordHash = passwordHash;
+        this.securityQuestion = question;
+        this.securityAnswerHash = answerHash;
+        this.setupToken = null;
+        this.setupTokenExpiresAt = null;
+        this.mustChangePassword = false;
+        this.failedResetAttempts = 0;
+        this.locked = false;
+    }
+
+    // Issued again when the first code expires or goes astray. The old one
+    // stops working because it is overwritten, not because it is remembered.
+    public void reissueSetupToken(String token, LocalDateTime expiresAt) {
+        this.passwordHash = null;
+        this.securityQuestion = null;
+        this.securityAnswerHash = null;
+        this.setupToken = token;
+        this.setupTokenExpiresAt = expiresAt;
+        this.mustChangePassword = false;
+        this.failedResetAttempts = 0;
+        this.locked = false;
     }
 
     public String getPreferredTheme() {

@@ -18,7 +18,7 @@ public record UserDetailDto(
         Role role,
         boolean active,
         boolean locked,
-        boolean mustChangePassword,
+        boolean awaitingSetup,
         int failedResetAttempts,
         SecurityQuestion securityQuestion,
         LocalDateTime createdAt

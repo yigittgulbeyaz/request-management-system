@@ -17,15 +17,24 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     boolean existsByEmail(String email);
 
+    // The code identifies the account on its own, which is what lets someone
+    // set up an account without first proving who they are: holding the code is
+    // the proof, and it works once.
+    Optional<UserEntity> findBySetupToken(String setupToken);
+
     // Both filters are optional and expressed the same way, so one query serves
     // every combination the screen offers rather than four near-identical ones.
     //
     // The search matches name or email because an administrator looking for
     // someone has one or the other, not reliably both.
+    //
+    // Awaiting setup is derived from the token rather than stored twice: an
+    // account has credentials or it has a code, never both.
     @Query("""
             SELECT new com.yigit.requestms.admin.dto.AdminUserDto(
                 u.id, u.nameSurname, u.email, u.role, u.active, u.locked,
-                u.mustChangePassword, u.createdAt)
+                CASE WHEN u.setupToken IS NOT NULL THEN TRUE ELSE FALSE END,
+                u.createdAt)
             FROM UserEntity u
             WHERE (:role IS NULL OR u.role = :role)
               AND (:search IS NULL

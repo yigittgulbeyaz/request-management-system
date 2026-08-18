@@ -3,6 +3,7 @@ package com.yigit.requestms.admin.view;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
+import com.vaadin.flow.component.contextmenu.SubMenu;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.icon.Icon;
@@ -22,7 +23,7 @@ import com.yigit.requestms.admin.dto.AdminUserDto;
 import com.yigit.requestms.admin.dto.CreatedUserDto;
 import com.yigit.requestms.admin.service.AdminUserService;
 import com.yigit.requestms.admin.ui.CreateUserDialog;
-import com.yigit.requestms.admin.ui.TemporaryPasswordDialog;
+import com.yigit.requestms.admin.ui.SetupCodeDialog;
 import com.yigit.requestms.admin.ui.UserDetailDialog;
 import com.yigit.requestms.admin.ui.UserStatePresentation;
 import com.yigit.requestms.common.ui.MainLayout;
@@ -36,7 +37,6 @@ import java.time.format.DateTimeFormatter;
 @RolesAllowed("ADMIN")
 public class UserManagementView extends VerticalLayout {
 
-    private static final String ALL_ROLES_LABEL = "All roles";
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
@@ -61,10 +61,12 @@ public class UserManagementView extends VerticalLayout {
                 e -> openCreateDialog());
         create.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        HorizontalLayout header = new HorizontalLayout(new H2("Users"), create);
+        H2 title = new H2("Users");
+
+        HorizontalLayout header = new HorizontalLayout(title, create);
         header.setWidthFull();
         header.setAlignItems(Alignment.CENTER);
-        header.expand(header.getComponentAt(0));
+        header.expand(title);
         return header;
     }
 
@@ -77,12 +79,12 @@ public class UserManagementView extends VerticalLayout {
         search.setValueChangeMode(ValueChangeMode.LAZY);
         search.addValueChangeListener(e -> grid.getDataProvider().refreshAll());
 
-        roleFilter.setPlaceholder(ALL_ROLES_LABEL);
+        roleFilter.setPlaceholder("All roles");
         roleFilter.setItems(Role.values());
         roleFilter.setItemLabelGenerator(role ->
-                role == null ? ALL_ROLES_LABEL : UserStatePresentation.label(role));
+                role == null ? "All roles" : UserStatePresentation.label(role));
         roleFilter.setEmptySelectionAllowed(true);
-        roleFilter.setEmptySelectionCaption(ALL_ROLES_LABEL);
+        roleFilter.setEmptySelectionCaption("All roles");
         roleFilter.addValueChangeListener(e -> grid.getDataProvider().refreshAll());
     }
 
@@ -126,17 +128,30 @@ public class UserManagementView extends VerticalLayout {
                 query -> (int) adminUserService.count(roleFilter.getValue(), search.getValue()));
     }
 
+    private Button nameLink(AdminUserDto user) {
+        Button link = new Button(user.nameSurname(), e -> openDetail(user));
+        link.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+        link.getStyle().set("text-align", "left");
+        return link;
+    }
+
     private MenuBar actionsMenu(AdminUserDto user) {
         MenuBar menu = new MenuBar();
         menu.addThemeVariants(MenuBarVariant.LUMO_TERTIARY_INLINE);
 
         var root = menu.addItem(new Icon(VaadinIcon.ELLIPSIS_DOTS_H));
-        var items = root.getSubMenu();
+        SubMenu items = root.getSubMenu();
 
         addRoleItems(items, user);
 
+        // Issued for an account still waiting, and for one whose owner has
+        // forgotten how to get in. Both end the same way: whatever the account
+        // had is discarded and a fresh code takes its place.
+        items.addItem(user.awaitingSetup() ? "Issue a new setup code" : "Reset account access",
+                e -> confirmReissue(user));
+
         if (user.locked()) {
-            items.addItem("Unlock and reset password", e -> confirmUnlock(user));
+            items.addItem("Unlock", e -> confirmUnlock(user));
         }
 
         if (user.active()) {
@@ -151,8 +166,7 @@ public class UserManagementView extends VerticalLayout {
         return menu;
     }
 
-    private void addRoleItems(com.vaadin.flow.component.contextmenu.SubMenu items,
-                              AdminUserDto user) {
+    private void addRoleItems(SubMenu items, AdminUserDto user) {
         var roleItem = items.addItem("Change role");
         for (Role role : Role.values()) {
             if (role == user.role()) {
@@ -200,42 +214,57 @@ public class UserManagementView extends VerticalLayout {
         dialog.open();
     }
 
+    // Unlocking clears the lock and nothing else. Being locked out of recovery
+    // says nothing about whether the owner still knows their password, and
+    // someone who has forgotten it needs a setup code, which is a separate
+    // decision an administrator makes deliberately.
     private void confirmUnlock(AdminUserDto user) {
         ConfirmDialog dialog = new ConfirmDialog();
-        dialog.setHeader("Unlock and reset password?");
-        dialog.setText("A new temporary password is issued and shown once. "
-                + "The old one stops working immediately.");
+        dialog.setHeader("Unlock account?");
+        dialog.setText(user.nameSurname()
+                + " can attempt password recovery again. Their password is "
+                + "unchanged.");
         dialog.setCancelable(true);
         dialog.setConfirmText("Unlock");
         dialog.addConfirmListener(e -> {
-            CreatedUserDto result = adminUserService.unlockWithNewPassword(user.id());
+            adminUserService.unlock(user.id());
+            notifySuccess(user.nameSurname() + " is unlocked.");
             grid.getDataProvider().refreshAll();
-            new TemporaryPasswordDialog(result).open();
         });
         dialog.open();
+    }
+
+    private void confirmReissue(AdminUserDto user) {
+        ConfirmDialog dialog = new ConfirmDialog();
+        dialog.setHeader(user.awaitingSetup() ? "Issue a new code?" : "Reset account access?");
+        dialog.setText(user.awaitingSetup()
+                ? "The previous code stops working."
+                : user.nameSurname() + " will lose their password and security "
+                + "question, and will choose both again with the new code.");
+        dialog.setCancelable(true);
+        dialog.setConfirmText("Issue code");
+        dialog.addConfirmListener(e -> {
+            CreatedUserDto result = adminUserService.reissueSetupCode(user.id());
+            grid.getDataProvider().refreshAll();
+            new SetupCodeDialog(result).open();
+        });
+        dialog.open();
+    }
+
+    private void openDetail(AdminUserDto user) {
+        new UserDetailDialog(adminUserService.detail(user.id())).open();
     }
 
     private void openCreateDialog() {
         new CreateUserDialog(form -> {
             CreatedUserDto created = adminUserService.create(form);
             grid.getDataProvider().refreshAll();
-            new TemporaryPasswordDialog(created).open();
+            new SetupCodeDialog(created).open();
         }).open();
     }
 
     private void notifySuccess(String message) {
         Notification.show(message, 3000, Notification.Position.BOTTOM_END)
                 .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
-    }
-
-    private Button nameLink(AdminUserDto user) {
-        Button link = new Button(user.nameSurname(), e -> openDetail(user));
-        link.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
-        link.getStyle().set("text-align", "left");
-        return link;
-    }
-
-    private void openDetail(AdminUserDto user) {
-        new UserDetailDialog(adminUserService.detail(user.id())).open();
     }
 }
