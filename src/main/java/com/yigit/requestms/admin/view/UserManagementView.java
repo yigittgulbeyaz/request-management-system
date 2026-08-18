@@ -23,6 +23,7 @@ import com.yigit.requestms.admin.dto.CreatedUserDto;
 import com.yigit.requestms.admin.service.AdminUserService;
 import com.yigit.requestms.admin.ui.CreateUserDialog;
 import com.yigit.requestms.admin.ui.TemporaryPasswordDialog;
+import com.yigit.requestms.admin.ui.UserDetailDialog;
 import com.yigit.requestms.admin.ui.UserStatePresentation;
 import com.yigit.requestms.common.ui.MainLayout;
 import com.yigit.requestms.user.enums.Role;
@@ -35,6 +36,7 @@ import java.time.format.DateTimeFormatter;
 @RolesAllowed("ADMIN")
 public class UserManagementView extends VerticalLayout {
 
+    private static final String ALL_ROLES_LABEL = "All roles";
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
@@ -75,17 +77,17 @@ public class UserManagementView extends VerticalLayout {
         search.setValueChangeMode(ValueChangeMode.LAZY);
         search.addValueChangeListener(e -> grid.getDataProvider().refreshAll());
 
-        roleFilter.setPlaceholder("All roles");
+        roleFilter.setPlaceholder(ALL_ROLES_LABEL);
         roleFilter.setItems(Role.values());
         roleFilter.setItemLabelGenerator(role ->
-                role == null ? "All roles" : UserStatePresentation.label(role));
+                role == null ? ALL_ROLES_LABEL : UserStatePresentation.label(role));
         roleFilter.setEmptySelectionAllowed(true);
-        roleFilter.setEmptySelectionCaption("All roles");
+        roleFilter.setEmptySelectionCaption(ALL_ROLES_LABEL);
         roleFilter.addValueChangeListener(e -> grid.getDataProvider().refreshAll());
     }
 
     private void configureGrid() {
-        grid.addColumn(AdminUserDto::nameSurname)
+        grid.addComponentColumn(this::nameLink)
                 .setHeader("Name")
                 .setFlexGrow(1);
 
@@ -224,5 +226,16 @@ public class UserManagementView extends VerticalLayout {
     private void notifySuccess(String message) {
         Notification.show(message, 3000, Notification.Position.BOTTOM_END)
                 .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+    }
+
+    private Button nameLink(AdminUserDto user) {
+        Button link = new Button(user.nameSurname(), e -> openDetail(user));
+        link.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+        link.getStyle().set("text-align", "left");
+        return link;
+    }
+
+    private void openDetail(AdminUserDto user) {
+        new UserDetailDialog(adminUserService.detail(user.id())).open();
     }
 }

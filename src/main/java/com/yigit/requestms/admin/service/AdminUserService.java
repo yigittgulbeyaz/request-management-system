@@ -3,6 +3,7 @@ package com.yigit.requestms.admin.service;
 import com.yigit.requestms.admin.dto.AdminUserDto;
 import com.yigit.requestms.admin.dto.CreateUserDto;
 import com.yigit.requestms.admin.dto.CreatedUserDto;
+import com.yigit.requestms.admin.dto.UserDetailDto;
 import com.yigit.requestms.admin.exception.CannotDemoteLastAdminException;
 import com.yigit.requestms.user.entity.UserEntity;
 import com.yigit.requestms.user.enums.Role;
@@ -39,6 +40,23 @@ public class AdminUserService {
     @Transactional(readOnly = true)
     public List<AdminUserDto> list(Role role, String search, Pageable pageable) {
         return userRepository.findForAdmin(role, blankToNull(search), pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public UserDetailDto detail(Long userId) {
+        UserEntity user = require(userId);
+
+        return new UserDetailDto(
+                user.getId(),
+                user.getNameSurname(),
+                user.getEmail(),
+                user.getRole(),
+                user.isActive(),
+                user.isLocked(),
+                user.isMustChangePassword(),
+                user.getFailedResetAttempts(),
+                user.getSecurityQuestion(),
+                user.getCreatedAt());
     }
 
     @Transactional(readOnly = true)
