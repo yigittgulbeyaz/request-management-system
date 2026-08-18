@@ -1,5 +1,6 @@
 package com.yigit.requestms.common.ui;
 
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.button.Button;
@@ -33,10 +34,14 @@ public class MainLayout extends AppLayout {
         H2 title = new H2("Request Management System");
         title.addClassNames(LumoUtility.FontSize.LARGE, LumoUtility.Margin.NONE);
 
+        Button profile = new Button("Profile",
+                e -> UI.getCurrent().navigate("profile"));
+        profile.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+
         Button logout = new Button("Sign out", e -> authenticationContext.logout());
         logout.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
 
-        HorizontalLayout header = new HorizontalLayout(new DrawerToggle(), title, logout);
+        HorizontalLayout header = new HorizontalLayout(new DrawerToggle(), title, profile, logout);
         header.setWidthFull();
         header.expand(title);
         header.setAlignItems(HorizontalLayout.Alignment.CENTER);

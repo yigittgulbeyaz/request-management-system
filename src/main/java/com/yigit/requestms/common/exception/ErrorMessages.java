@@ -34,7 +34,8 @@ public final class ErrorMessages {
                     "A password needs at least 8 characters, including a letter and a digit."),
             Map.entry("INVALID_SECURITY_ANSWER", "That answer does not match."),
             Map.entry("ACCOUNT_LOCKED",
-                    "Too many incorrect answers. Ask an administrator to unlock the account.")
+                    "Too many incorrect answers. Ask an administrator to unlock the account."),
+            Map.entry("INCORRECT_PASSWORD", "The current password is not correct.")
     );
 
     // What a user reads when something failed for a reason they cannot act on.
