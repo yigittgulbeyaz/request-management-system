@@ -4,10 +4,12 @@ import com.yigit.requestms.common.security.CurrentUserService;
 import com.yigit.requestms.request.dto.CustomerRequestDetailDto;
 import com.yigit.requestms.request.dto.CustomerRequestDto;
 import com.yigit.requestms.request.dto.RequestCreateDto;
+import com.yigit.requestms.request.dto.StatusTimelineEntryDto;
 import com.yigit.requestms.request.entity.RequestEntity;
 import com.yigit.requestms.request.exception.RequestNotFoundException;
 import com.yigit.requestms.request.mapper.RequestMapper;
 import com.yigit.requestms.request.repository.RequestRepository;
+import com.yigit.requestms.request.repository.RequestStatusHistoryRepository;
 import com.yigit.requestms.user.entity.UserEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,13 +25,16 @@ import java.util.List;
 public class RequestService {
 
     private final RequestRepository requestRepository;
+    private final RequestStatusHistoryRepository historyRepository;
     private final CurrentUserService currentUserService;
     private final RequestMapper requestMapper;
 
     public RequestService(RequestRepository requestRepository,
+                          RequestStatusHistoryRepository historyRepository,
                           CurrentUserService currentUserService,
                           RequestMapper requestMapper) {
         this.requestRepository = requestRepository;
+        this.historyRepository = historyRepository;
         this.currentUserService = currentUserService;
         this.requestMapper = requestMapper;
     }
@@ -63,5 +68,17 @@ public class RequestService {
                 .findByIdAndCustomerId(requestId, currentUserService.requireId())
                 .map(requestMapper::toCustomerDetail)
                 .orElseThrow(() -> new RequestNotFoundException(requestId));
+    }
+
+    // Ownership is checked before the trail is read rather than filtered into
+    // the history query: the request either belongs to the caller or the whole
+    // question does not apply.
+    @Transactional(readOnly = true)
+    public List<StatusTimelineEntryDto> getMyRequestTimeline(Long requestId) {
+        requestRepository
+                .findByIdAndCustomerId(requestId, currentUserService.requireId())
+                .orElseThrow(() -> new RequestNotFoundException(requestId));
+
+        return historyRepository.findCustomerTimeline(requestId);
     }
 }

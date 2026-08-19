@@ -5,7 +5,7 @@ import com.yigit.requestms.request.enums.RequestStatus;
 
 // How a request status is presented to the customer who raised it. Kept apart
 // from the views so the wording lives in one place: the same mapping is used by
-// the list, the detail dialog and later by notification messages.
+// the list, the detail dialog and the timeline.
 public final class CustomerStatusPresentation {
 
     private CustomerStatusPresentation() {
@@ -22,6 +22,21 @@ public final class CustomerStatusPresentation {
             case IN_WORKFLOW -> "In progress";
             case CLOSED -> "Completed";
             case REJECTED -> "Not taken forward";
+        };
+    }
+
+    // The timeline reads as a sequence of events rather than a sequence of
+    // states, so each step is phrased as something that happened.
+    public static String timelineLabel(String storedStatus) {
+        return switch (storedStatus) {
+            case "NEW" -> "Request received";
+            case "PRIORITIZED" -> "Reviewed and prioritised";
+            case "IN_WORKFLOW" -> "Work started";
+            case "CLOSED" -> "Completed";
+            case "REJECTED" -> "Not taken forward";
+            // The query filters to the five above, so anything here is a value
+            // added to the enum without this being updated.
+            default -> storedStatus;
         };
     }
 

@@ -64,8 +64,9 @@ public class MyRequestsView extends VerticalLayout {
     }
 
     private Button detailButton(CustomerRequestDto dto) {
-        Button button = new Button("Details",
-                e -> new RequestDetailDialog(requestService.getMyRequest(dto.id())).open());
+        Button button = new Button("Details", e -> new RequestDetailDialog(
+                requestService.getMyRequest(dto.id()),
+                requestService.getMyRequestTimeline(dto.id())).open());
         button.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         return button;
     }
