@@ -11,6 +11,8 @@ import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.spring.security.AuthenticationContext;
 import com.vaadin.flow.theme.lumo.LumoUtility;
+import com.yigit.requestms.notification.service.NotificationService;
+import com.yigit.requestms.notification.ui.NotificationBell;
 import jakarta.annotation.security.PermitAll;
 
 // PermitAll rather than a role list: the layout itself carries no data, and
@@ -23,9 +25,13 @@ import jakarta.annotation.security.PermitAll;
 public class MainLayout extends AppLayout {
 
     private final AuthenticationContext authenticationContext;
+    private final NotificationService notificationService;
 
-    public MainLayout(AuthenticationContext authenticationContext) {
+    public MainLayout(AuthenticationContext authenticationContext,
+                      NotificationService notificationService) {
         this.authenticationContext = authenticationContext;
+        this.notificationService = notificationService;
+
         addToNavbar(buildHeader());
         addToDrawer(buildNavigation());
     }
@@ -34,14 +40,16 @@ public class MainLayout extends AppLayout {
         H2 title = new H2("Request Management System");
         title.addClassNames(LumoUtility.FontSize.LARGE, LumoUtility.Margin.NONE);
 
-        Button profile = new Button("Profile",
-                e -> UI.getCurrent().navigate("profile"));
+        NotificationBell bell = new NotificationBell(notificationService);
+
+        Button profile = new Button("Profile", e -> UI.getCurrent().navigate("profile"));
         profile.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
 
         Button logout = new Button("Sign out", e -> authenticationContext.logout());
         logout.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
 
-        HorizontalLayout header = new HorizontalLayout(new DrawerToggle(), title, profile, logout);
+        HorizontalLayout header = new HorizontalLayout(
+                new DrawerToggle(), title, bell, profile, logout);
         header.setWidthFull();
         header.expand(title);
         header.setAlignItems(HorizontalLayout.Alignment.CENTER);

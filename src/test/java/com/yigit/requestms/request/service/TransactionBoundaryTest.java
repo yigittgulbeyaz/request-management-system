@@ -79,11 +79,7 @@ class TransactionBoundaryTest {
     void removeWhatTheTestWrote() {
         for (Long requestId : createdRequests) {
             notificationRepository.deleteAll(
-                    notificationRepository.findByRecipientIdOrderByCreatedAtDesc(customer.getId())
-                            .stream()
-                            .filter(n -> n.getRelatedRequest() != null
-                                    && requestId.equals(n.getRelatedRequest().getId()))
-                            .toList());
+                    notificationRepository.findByRelatedRequestId(requestId));
 
             historyRepository.deleteAll(
                     historyRepository.findByRequestIdOrderByChangedAtDesc(requestId));
