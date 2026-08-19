@@ -21,6 +21,7 @@ import com.yigit.requestms.common.ui.MainLayout;
 import com.yigit.requestms.user.dto.PasswordChangeDto;
 import com.yigit.requestms.user.dto.ProfileDto;
 import com.yigit.requestms.user.dto.ProfileUpdateDto;
+import com.yigit.requestms.user.service.EmailPolicy;
 import com.yigit.requestms.user.service.ProfileService;
 import jakarta.annotation.security.PermitAll;
 
@@ -130,8 +131,8 @@ public class ProfileView extends VerticalLayout {
         }
         if (email.isEmpty()) {
             valid = fail(email, "Enter an email address");
-        } else if (email.isInvalid()) {
-            valid = fail(email, "That does not look like an email address");
+        } else if (!EmailPolicy.isWellFormed(email.getValue())) {
+            valid = fail(email, EmailPolicy.describe());
         }
         return valid;
     }

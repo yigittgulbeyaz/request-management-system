@@ -50,6 +50,8 @@ public class ProfileService {
         UserEntity user = currentUserService.require();
         String email = form.email().trim().toLowerCase();
 
+        EmailPolicy.require(email);
+
         // Only a genuine change is checked, or saving a form without touching
         // the address would report a duplicate of yourself.
         if (!email.equals(user.getEmail()) && userRepository.existsByEmail(email)) {

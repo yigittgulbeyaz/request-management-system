@@ -35,7 +35,8 @@ public final class ErrorMessages {
             Map.entry("INVALID_SECURITY_ANSWER", "That answer does not match."),
             Map.entry("ACCOUNT_LOCKED",
                     "Too many incorrect answers. Ask an administrator to unlock the account."),
-            Map.entry("INCORRECT_PASSWORD", "The current password is not correct.")
+            Map.entry("INCORRECT_PASSWORD", "The current password is not correct."),
+            Map.entry("INVALID_EMAIL", "That does not look like an email address.")
     );
 
     // What a user reads when something failed for a reason they cannot act on.

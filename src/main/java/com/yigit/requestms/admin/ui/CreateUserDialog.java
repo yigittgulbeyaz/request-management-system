@@ -12,6 +12,7 @@ import com.vaadin.flow.component.textfield.EmailField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.yigit.requestms.admin.dto.CreateUserDto;
 import com.yigit.requestms.user.enums.Role;
+import com.yigit.requestms.user.service.EmailPolicy;
 
 import java.util.function.Consumer;
 
@@ -96,8 +97,11 @@ public class CreateUserDialog extends Dialog {
 
         if (email.isEmpty()) {
             valid = fail(email, "Enter an email address");
-        } else if (email.isInvalid()) {
-            valid = fail(email, "That does not look like an email address");
+        }  else if (!EmailPolicy.isWellFormed(email.getValue())) {
+            // Asked of the policy rather than the field: the listener that
+            // clears our own error message also clears the field's built-in
+            // validation, so isInvalid() answers about nothing.
+            valid = fail(email, EmailPolicy.describe());
         }
 
         if (role.getValue() == null) {

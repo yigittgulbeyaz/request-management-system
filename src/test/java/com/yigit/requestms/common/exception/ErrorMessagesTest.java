@@ -7,6 +7,7 @@ import com.yigit.requestms.request.exception.InvalidRequestTransitionException;
 import com.yigit.requestms.request.exception.RejectionReasonRequiredException;
 import com.yigit.requestms.request.exception.RequestNotFoundException;
 import com.yigit.requestms.user.exception.DuplicateEmailException;
+import com.yigit.requestms.user.exception.InvalidEmailException;
 import com.yigit.requestms.user.exception.UserNotFoundException;
 import com.yigit.requestms.workflow.enums.WorkflowStatus;
 import com.yigit.requestms.workflow.exception.InvalidWorkflowTransitionException;
@@ -42,7 +43,8 @@ class ErrorMessagesTest {
                 new UnauthenticatedException("no session"),
                 new UserNotFoundException(1L),
                 new DuplicateEmailException("someone@example.com"),
-                new CannotDemoteLastAdminException()
+                new CannotDemoteLastAdminException(),
+                new InvalidEmailException()
         );
     }
 

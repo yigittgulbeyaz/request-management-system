@@ -10,6 +10,7 @@ import com.yigit.requestms.user.enums.Role;
 import com.yigit.requestms.user.exception.DuplicateEmailException;
 import com.yigit.requestms.user.exception.UserNotFoundException;
 import com.yigit.requestms.user.repository.UserRepository;
+import com.yigit.requestms.user.service.EmailPolicy;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -78,6 +79,11 @@ public class AdminUserService {
     @Transactional
     public CreatedUserDto create(CreateUserDto form) {
         String email = form.email().trim().toLowerCase();
+
+        // Checked here rather than trusted from the form. The form explains the
+        // problem; this is what makes it a rule, because a caller reaching the
+        // service directly never saw the form.
+        EmailPolicy.require(email);
 
         if (userRepository.existsByEmail(email)) {
             throw new DuplicateEmailException(email);
