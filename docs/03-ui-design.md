@@ -34,22 +34,29 @@ The `SideNav` renders a different item set depending on the authenticated user's
 | Role | Navigation items |
 |---|---|
 | Customer | New Request, My Requests |
-| Product Owner | Prioritization Pool, Workflows, Analytics |
+| Product Owner | Prioritization Pool, Analytics |
 | Developer | My Tasks, Available Tasks |
-| Admin | Users, System Overview, Analytics |
+| Admin | Users, Analytics |
 
-Navigation items are not merely hidden for unauthorized roles — the routes themselves are guarded (see §7.2). Hiding a link is a usability decision, not a security measure.
+Every role also reaches Profile and Sign out from the navbar.
+
+Navigation items are not merely hidden for unauthorized roles — the routes themselves are guarded, and the services behind them again (see §7.4). Hiding a link is a usability decision, not a security measure.
 
 ### 1.3 Reusable Components
 
 | Component | Purpose | Used in |
 |---|---|---|
-| `StatusBadge` | Renders a status as a coloured `Span` with theme variant | Request lists, task board |
-| `ScoreBadge` | Renders priority score with Low/Medium/Critical colour | PO pool, developer task list |
-| `ConfirmDialog` | Confirmation for irreversible actions | DONE transition, rejection |
-| `NotificationBell` | Unread counter + dropdown of recent notifications | Navbar (all roles) |
-| `ThemeToggle` | Switches Lumo light/dark, persists preference | Navbar (all roles) |
-| `EmptyState` | Icon + message + optional action button | Any empty grid |
+| `StatusBadge` | A coloured `Span` taking a label and a tone | Everywhere a state is shown |
+| `CustomerStatusPresentation` | Request status in the customer's words | Customer list and detail |
+| `PoStatusPresentation` | Raw status and the score band | PO pool |
+| `WorkflowStatusPresentation` | Stage names and what a move means | Developer board |
+| `DeadlinePresentation` | Days remaining, colour, sort key | Developer screens |
+| `UserStatePresentation` | Role and account state badges | Admin screens |
+| `ConfirmDialog` | Confirmation for irreversible actions | DONE, rejection, role change, deactivation |
+
+**`StatusBadge` takes its label rather than deriving it,** because the same state reads differently per role: a customer sees "In progress" where a product owner sees `IN_WORKFLOW`. The presentation classes hold the vocabularies, one per audience.
+
+**Badges use literal colours rather than Lumo's custom properties.** The variables resolve against a stylesheet this application does not import and came out blank.
 
 ### 1.4 Feedback Convention
 
@@ -69,22 +76,24 @@ Notifications appear bottom-end. Inline field errors are always preferred over n
 | Route | View | Allowed roles | Layout |
 |---|---|---|---|
 | `/login` | `LoginView` | Anonymous | Standalone |
-| `/forgot-password` | `ForgotPasswordView` | Anonymous | Standalone |
-| `/change-password` | `ForcedPasswordChangeView` | Any authenticated with flag set | Standalone |
-| `/` | Redirect by role | Authenticated | — |
+| `/setup` | `AccountSetupView` | Anonymous | Standalone |
+| `/recover` | `PasswordRecoveryView` | Anonymous | Standalone |
+| `/` | `RootRedirectView` | Authenticated | — |
 | `/requests/new` | `NewRequestView` | Customer | Main |
 | `/requests/my` | `MyRequestsView` | Customer | Main |
 | `/profile` | `ProfileView` | Any authenticated | Main |
 | `/po/pool` | `PrioritizationPoolView` | PO | Main |
-| `/po/prioritize/:requestId` | `PrioritizationFormView` | PO | Main |
-| `/po/workflows` | `WorkflowOverviewView` | PO | Main |
-| `/po/analytics` | `AnalyticsView` | PO, Admin | Main |
+| `/po/prioritize?requestId=` | `PrioritizationFormView` | PO | Main |
 | `/dev/tasks` | `MyTasksView` | Developer | Main |
 | `/dev/available` | `AvailableTasksView` | Developer | Main |
 | `/admin/users` | `UserManagementView` | Admin | Main |
-| `/admin/overview` | `SystemOverviewView` | Admin | Main |
+| `/analytics` | `AnalyticsView` | PO, Admin | Main |
 
 **Root redirect:** `/` routes each role to its primary screen — Customer to `/requests/my`, PO to `/po/pool`, Developer to `/dev/tasks`, Admin to `/admin/users`.
+
+**Analytics is not under `/po/`.** A role prefix says whose screen it is, and two roles reach this one; naming it after either would misdescribe it for the other.
+
+**The scoring form takes a query parameter rather than a path segment.** A view instance is reused across navigations, so the id is read on entry rather than held as a field, and a query parameter is what `BeforeEnterEvent` hands over without further routing setup.
 
 ---
 
@@ -171,7 +180,13 @@ ProfileView
             └── Button → "Change password"
 ```
 
-The role field is rendered read-only with a helper text explaining that role changes are handled by an administrator. Password change is deliberately placed in a collapsed `Details` section — it is a separate operation with a separate endpoint, and separating it visually reinforces that.
+**The role is shown and locked rather than left out.** Knowing what you are is useful, and a visibly locked field says who decides it better than an absent one would. It is also not a parameter the update accepts: a field that never arrives cannot be set by someone editing the request on its way to the server.
+
+**Changing a password is a separate act from correcting a name,** so it has its own collapsed section and its own button. Folded into one save, the form would have to explain which half of it failed.
+
+**The current password is required** even though the session already proves who is asking. A session left open on a shared machine proves the machine, not the person, and this is the one place that difference matters.
+
+Reached from a Profile button in the navbar, beside Sign out.
 
 ---
 
@@ -284,23 +299,11 @@ The reason is mandatory and is shown to the customer, so the helper text states 
 
 ### 4.4 Workflow Overview — `/po/workflows`
 
-```
-WorkflowOverviewView
-└── VerticalLayout
-    ├── H2 ("Active workflows")
-    ├── HorizontalLayout (status filter tabs: All / Backlog / In Progress / Testing / Done)
-    └── Grid<WorkflowSummaryDto>
-        ├── Column: taskId
-        ├── Column: requestTitle (flex-grow)
-        ├── Column: priorityScore → ScoreBadge
-        ├── Column: workflowStatus → StatusBadge
-        ├── Column: developerName ("Unassigned" when null)
-        └── Column: actions → Button ("Assign Developer")
-```
+Not built. Conversion leaves a task unclaimed and developers pull work from the available list, so there is nothing for an owner to assign; a screen for assigning would exist to contradict that.
 
-**Assign developer** opens a `Dialog` containing a `ComboBox<UserDto>` populated only with active users whose role is `DEVELOPER`. The combo box uses lazy loading with a filter callback so the developer list is queried on the server as the PO types.
+If it returns, it is for watching rather than acting: which tasks are running late, and who has how much open. The second half is a query that belongs with the reporting views.
 
-### 4.5 Analytics — `/po/analytics`
+### 4.5 Analytics — `/analytics`
 
 ```
 AnalyticsView
@@ -315,15 +318,11 @@ AnalyticsView
     │   └── ChartWrapper (pie)  → status distribution
     ├── HorizontalLayout (charts row 2)
     │   ├── ChartWrapper (bar)  → developer performance
-    │   └── Grid              → top 5 requesting customers
+    │   └── Grid                → top 5 requesting customers
     └── Button → "Export to Excel"
 ```
 
-**Chart rendering:** Vaadin Charts is a commercial component and is not used. Charts are rendered through a custom `ChartWrapper` component that wraps Chart.js via the Element API and `@JavaScript`. The wrapper exposes a small typed API (`setLabels`, `setValues`, `setType`) so views never touch JavaScript directly.
-
-**Layout:** every chart row uses `FlexLayout` with wrapping enabled so the dashboard degrades to a single column on narrow viewports without a commercial dashboard layout component.
-
----
+**Reached by both the owner and the administrator,** which is why the route carries no role prefix. This screen asks how the system is going; the admin user detail asks what one person has been doing. Same views underneath, two questions.
 
 ## 5. Developer Screens
 
@@ -333,27 +332,46 @@ AnalyticsView
 MyTasksView
 └── VerticalLayout
     ├── H2 ("My tasks")
-    ├── Tabs (Backlog | In Progress | Testing | Done)
-    └── Grid<TaskDto>
+    ├── Span (overdue banner, hidden when nothing is late)
+    ├── Tabs (All | Backlog | In Progress | Testing | Done)
+    └── Grid<TaskSummaryDto>
         ├── Column: requestTitle (flex-grow)
-        ├── Column: priorityScore → ScoreBadge
-        ├── Column: workflowStatus → StatusBadge
-        ├── Column: assignedAt
+        ├── Column: priorityScore → score badge
+        ├── Column: deadline      → deadline badge
+        ├── Column: workflowStatus → stage badge
         └── Column: actions → transition buttons
 ```
 
-**Transition buttons** are rendered from the enum's allowed targets rather than hard-coded per status. The view asks `WorkflowStatus.allowedTransitions()` and renders one button per legal target. When the transition rules change, the UI follows automatically — the rules live in exactly one place.
+**Transition buttons come from the enum.** The view asks `WorkflowStatus.allowedTransitions()` and renders one button per legal target, rather than listing them per stage. When the rules change the board follows without being edited, and a stage with nowhere to go renders nothing.
 
-| Current status | Rendered buttons |
+| Current stage | Rendered buttons |
 |---|---|
 | `BACKLOG` | "Start Work" → `IN_PROGRESS` |
 | `IN_PROGRESS` | "Ready for Testing" → `TESTING` |
 | `TESTING` | "Mark as Done" → `DONE` (confirm), "Test Failed" → `IN_PROGRESS` |
 | `DONE` | None |
 
-**Confirmation:** the `DONE` transition opens a `ConfirmDialog` stating that the task cannot be reopened and that the customer's request will be closed automatically. Reversible transitions are executed immediately without confirmation.
+**The button says what the move means, not what the target is called.** "Test Failed" reads as a decision where "In Progress" reads as a destination.
 
-**Sorting:** default sort is priority score descending, so the highest-impact work surfaces first.
+**Only `DONE` asks first.** It is final and closes the customer's request with it. Sending a task back for rework is reversible, and confirming everything trains people to confirm without reading.
+
+**The deadline badge carries the days remaining, and the colour carries the urgency.** A date alone says little at a glance; what a developer scanning a list needs is which rows are late and which are about to be.
+
+| State | Reads | Tone |
+|---|---|---|
+| Past the deadline, not finished | `07.08.2026 (10d late)` | Red |
+| Within two days | `22.08.2026 (2d left)` | Amber |
+| Further out | `05.09.2026 (14d left)` | Neutral |
+| Finished | `13.05.2026` | Green |
+| No deadline | `No deadline` | Neutral |
+
+A finished task stops being overdue. Delivered late is late and the report says so, but it is not still running out of time.
+
+**The banner counts overdue work across every stage,** not the tab in view: a task running late in a tab nobody has open is exactly the one worth saying out loud.
+
+**An overdue task keeps every button it had.** Running late is a reason to finish something, not a reason to be unable to.
+
+**Sorted by deadline, soonest first, with undated tasks last.** A task with no deadline is not urgent, it is unmeasured, and pushing it to the bottom keeps it from displacing work that has a date to meet.
 
 ### 5.2 Available Tasks — `/dev/available`
 
@@ -361,16 +379,18 @@ MyTasksView
 AvailableTasksView
 └── VerticalLayout
     ├── H2 ("Unassigned tasks")
-    ├── Paragraph (explains that claiming assigns the task)
-    ├── Grid<TaskDto>
-    │   ├── Column: requestTitle
-    │   ├── Column: priorityScore → ScoreBadge
-    │   ├── Column: createdAt
-    │   └── Column: actions → Button ("Claim")
-    └── EmptyState ("No unassigned tasks right now")
+    ├── Paragraph (claiming assigns it; the deadline is already running)
+    └── Grid<TaskSummaryDto>
+        ├── Column: requestTitle
+        ├── Column: priorityScore → score badge
+        ├── Column: deadline      → deadline badge
+        ├── Column: createdAt     ("Waiting since")
+        └── Column: actions → Button ("Claim")
 ```
 
-**Concurrency handling in the UI:** claiming a task can fail if another developer claimed it first. The view catches this conflict, shows an error notification explaining that the task was taken, and refreshes the grid — it does not leave a stale row visible with a dead button.
+**The deadline is here as well as on the board,** because it is part of what a developer agrees to by claiming: one of these may be a week away and another already late.
+
+**Two developers can claim at the same moment.** The service reads the row under a lock, so the second one finds it taken and is told so; without the lock both would pass the check and the second write would silently replace the first, leaving the loser working on something the board says belongs to someone else.
 
 ---
 
@@ -384,137 +404,164 @@ No wireframe exists for these; the layouts below follow the conventions establis
 UserManagementView
 └── VerticalLayout
     ├── HorizontalLayout (header)
-    │   ├── H2 ("User management")
+    │   ├── H2 ("Users")
     │   └── Button (primary) → "New User"
     ├── HorizontalLayout (toolbar)
-    │   ├── TextField (search: name or email)
-    │   ├── Select (role filter, includes "All")
-    │   └── Select (state filter: All / Active / Inactive / Locked)
+    │   ├── TextField (search: name or email, LAZY)
+    │   └── Select (role filter, "All roles")
     └── Grid<AdminUserDto>
-        ├── Column: fullName (sortable)
-        ├── Column: email (sortable)
+        ├── Column: name → Button (opens the detail dialog)
+        ├── Column: email
         ├── Column: role → StatusBadge
-        ├── Column: state → StatusBadge (Active / Inactive / Locked)
+        ├── Column: state → StatusBadge set
         ├── Column: createdAt
         └── Column: actions → MenuBar (overflow menu)
 ```
 
-**Actions menu** per row, rendered as a `MenuBar` with an overflow icon so the column stays narrow:
+**State is a set of badges, not one status.** An account can be inactive, locked, awaiting setup, or none of those, and the states are independent: locked is what the system did after failed recovery attempts, inactive is what an administrator decided, awaiting setup is an account nobody has claimed yet. Rendering them as alternatives would suggest a user can only be one at a time.
+
+**Actions menu** per row, as a `MenuBar` with an overflow icon so the column stays narrow. Most of these are rare, and giving each its own button would make the common ones harder to find.
 
 | Action | Availability | Confirmation |
 |---|---|---|
-| Edit details | Always | No |
-| Change role | Always | Yes — role changes affect access immediately |
-| Deactivate | Active users | Yes |
-| Reactivate | Inactive users | No |
-| Unlock & reset password | Locked users | Yes |
+| Change role | Always | Yes — the person finds out by losing access |
+| Issue a new setup code | Awaiting setup | Yes |
+| Reset account access | Already set up | Yes — discards password and question |
+| Unlock | Locked accounts | Yes |
+| Deactivate | Active accounts | Yes |
+| Reactivate | Inactive accounts | No |
 
-**State column semantics:** a user can be active, inactive, or locked. Locked is a distinct state from inactive — locked means too many failed password-reset attempts, while inactive means an administrator disabled the account. They are shown with different badge themes so they are never confused.
+**Unlocking clears only the lock.** Being locked out of recovery says nothing about whether the owner still knows their password; someone who has forgotten needs a setup code, which is a separate decision an administrator makes on purpose.
 
-### 6.2 User Create / Edit Dialog
+**The last active administrator cannot be demoted or deactivated.** An account system with nobody able to administer it cannot be repaired from inside itself. The count looks at the others, so acting on a colleague is allowed where acting on yourself as the last one is not.
 
-```
-UserFormDialog
-└── FormLayout (2 columns)
-    ├── TextField      → full name (required)
-    ├── EmailField     → email (required, unique)
-    ├── Select<Role>   → role (required)
-    ├── Select<SecurityQuestion> → security question (required, create only)
-    ├── TextField      → security answer (required, create only)
-    └── HorizontalLayout (footer)
-        ├── Button (primary) → "Save"
-        └── Button (tertiary)→ "Cancel"
-```
-
-**After creation** the dialog is replaced by a result panel showing the generated temporary password with a copy-to-clipboard button, and a warning that the password is displayed only once. The user is created with `must_change_password = 1`.
-
-**Edit mode** hides the security question fields — an administrator does not change another user's security answer. If the answer needs resetting, the unlock action handles it.
-
-### 6.3 System Overview — `/admin/overview`
+### 6.2 New User Dialog
 
 ```
-SystemOverviewView
-└── VerticalLayout
-    ├── HorizontalLayout (KPI cards)
-    │   ├── Card: total users (by role breakdown)
-    │   ├── Card: active vs inactive ratio
-    │   ├── Card: locked accounts
-    │   └── Card: total requests
-    ├── H3 ("All requests")
-    ├── Grid<AdminRequestDto>   → unrestricted view of every request
-    └── H3 ("Recent status changes")
-        └── Grid<StatusHistoryDto> → audit trail, newest first
+CreateUserDialog
+└── FormLayout (1 column)
+    ├── TextField  → full name
+    ├── EmailField → email
+    └── Select     → role
+└── Paragraph (explains the setup code that follows)
+└── Footer: Cancel · "Create account"
 ```
 
-The admin request grid is read-only. Admin has full visibility but no authority to advance the state machine — there are no action buttons on these rows, which makes the boundary visible in the interface itself.
+**Three fields: who the person is and what they may do.** Nothing about how they will prove the account is theirs.
+
+**No password and no security question.** An administrator who chose the password would hold the account open indefinitely, and one who also chose the question would hold both doors. What comes back instead is a one-time code, and the person who uses it chooses both.
+
+### 6.3 Setup Code Dialog
+
+Shown once, straight after creation or after a code is reissued.
+
+```
+SetupCodeDialog (not dismissable by Esc or outside click)
+├── Paragraph  → who to give it to
+├── Span       → the code, monospace, grouped in fours
+├── Paragraph  → expiry date
+├── Paragraph  → warning that it is shown only once
+└── Footer: "I have written it down"
+```
+
+Only the code itself is stored, and no screen can recover it: an administrator who closes this dialog too early has to issue a new one, which is cheaper than a screen that can show any account's code on demand.
+
+### 6.4 User Detail Dialog
+
+Opened from the name in the list.
+
+```
+UserDetailDialog (read-only)
+├── Account   → email, role, state badges, joined date
+├── Security  → security question by name, failed recovery attempts
+└── Activity  → completed work, turnaround, deadline record
+```
+
+**Read-only on purpose.** Everything that changes an account is already in the row's action menu, and offering the same thing twice invites the two to disagree about what confirmation each needs.
+
+**The security answer is never shown.** Only its hash is stored, and an administrator able to read the answer would make the question worthless as a way of proving who someone is. For an account awaiting setup the section says so rather than showing empty fields, because the question has not been chosen yet.
+
+**The activity section is the person-shaped half of reporting.** Admin asks "what has this person been doing"; the analytics screen asks "how is the system going". Same queries, different question, so the same views feed both.
 
 ---
 
 ## 7. Authentication Screens
+
+There is no registration. This is an internal system: users are known people whose role is a decision, and someone signing themselves up could neither pick their own role nor prove they are a customer. An administrator opens the account instead, which in a real deployment would be an identity provider doing the same thing.
 
 ### 7.1 Login — `/login`
 
 ```
 LoginView
 └── VerticalLayout (centered)
-    └── LoginForm
-        ├── i18n: title, username = "Email", password
-        └── forgotPasswordButton → navigates to /forgot-password
+    ├── H1 (application name)
+    ├── LoginForm
+    ├── Anchor → /recover  ("Forgotten your password?")
+    └── Anchor → /setup    ("Have a setup code?")
 ```
 
-`LoginForm` is used rather than `LoginOverlay` so the page can carry the application name and a footer without fighting the overlay's fixed structure.
+**Error messages are deliberately uniform.** Wrong password, unknown email, locked account and an account still awaiting setup all produce the same message: *"Invalid credentials, or this account is unavailable."* Distinguishing them would let an attacker enumerate valid accounts and discover which are locked.
 
-**Error messages** are deliberately uniform. Wrong password, unknown email, and locked account all produce the same message: *"Invalid credentials, or this account is unavailable."* Distinguishing them would let an attacker enumerate valid accounts and discover which are locked. The exception is the inactive-account case after a successful credential check, where a distinct message is acceptable because credentials were already proven.
+**Vaadin's own forgot-password button is hidden.** It raises an event rather than navigating, so it would need a listener to do what the link below already does, and two of them on one screen is one too many.
 
-### 7.2 Route Guarding
+### 7.2 Account Setup — `/setup`
 
-Two mechanisms, applied together:
+Reached with a one-time code an administrator hands over. This is where an account gets its credentials for the first time.
 
-**Role-based access** is enforced with Spring Security's `@RolesAllowed` (or `@PermitAll` for public views) on the view class, backed by Vaadin's Spring Security integration. An unauthorized navigation attempt is rejected before the view is instantiated.
+```
+AccountSetupView
+└── VerticalLayout (centered, max 480px)
+    ├── H2 + explanatory Paragraph
+    └── FormLayout
+        ├── TextField        → setup code
+        ├── PasswordField    → password
+        ├── PasswordField    → confirm password
+        ├── Select           → security question
+        └── TextField        → answer
+    └── Button (primary)     → "Set up account"
+```
 
-**Forced password change** is enforced with a `BeforeEnterObserver` registered globally: when the authenticated user has `must_change_password = 1` and the target is not `/change-password`, the navigation is rerouted. This is why the flag blocks the whole application rather than a single screen.
+**Everything arrives at once.** The password, the question and the answer are supplied together and the code is destroyed in the same transaction, so there is no moment where both the code and the password open the account.
 
-### 7.3 Forgot Password — `/forgot-password`
+**Dashes and capitals are ignored.** The code is shown grouped in fours because that helps someone read it aloud; requiring the grouping back would make the formatting one more thing to get wrong.
 
-A two-step flow within a single view, using an internal step state rather than two routes:
+**The security question is chosen here, not by whoever opened the account.** A question whose answer an administrator already knows proves nothing about who is asking.
+
+### 7.3 Password Recovery — `/recover`
+
+Two steps in one view, with the second revealed rather than routed to.
 
 ```
 Step 1
-└── FormLayout
-    ├── EmailField → email
-    └── Button → "Continue"
+└── EmailField + Button ("Continue")
 
-Step 2
-└── FormLayout
-    ├── Span (the user's security question, read-only)
-    ├── TextField → answer
-    └── Button → "Verify"
-
-Step 3
-└── FormLayout
-    ├── PasswordField → new password
-    ├── PasswordField → confirm password
-    └── Button → "Set new password"
+Step 2 (revealed)
+├── Paragraph        → the security question, in full
+├── TextField        → answer
+├── PasswordField    → new password
+├── PasswordField    → confirm new password
+└── Button (primary) → "Set new password"
 ```
 
-**Attempt feedback:** the remaining attempt count is *not* shown. Telling an attacker how many guesses remain is more useful to them than to a legitimate user, who will typically succeed on the first or second try. When the limit is reached, the message states that the account is locked and directs the user to contact an administrator.
+**An unknown address still gets a question.** Saying "no such account" would turn this form into a way of testing which addresses are registered. The question shown for an unknown address is derived from the address itself, so the same one always produces the same question — one that changed between attempts would give the pretence away.
 
-**Unknown email:** step 1 always advances to step 2 with a generic placeholder question. Revealing that an email is unregistered enables account enumeration. The verification in step 2 then simply fails.
+**The remaining attempt count is not shown.** A count helps whoever is guessing far more than whoever forgot, who will get it in the first two attempts or not at all.
 
-### 7.4 Forced Password Change — `/change-password`
+**Three wrong answers lock the account,** and an administrator clears it. The point of a limit is that getting past it takes someone else.
 
-```
-ForcedPasswordChangeView
-└── VerticalLayout (centered)
-    ├── Paragraph (explains why the change is required)
-    ├── PasswordField → new password
-    ├── PasswordField → confirm password
-    └── Button → "Set password and continue"
-```
+### 7.4 Route Guarding
 
-Rendered standalone, outside `MainLayout` — the navigation drawer is not shown, because there is nowhere else the user may go until the password is set.
+Two mechanisms, applied together.
 
-**Password rules** (applied here and in the profile screen):
+**Role-based access** is declared per view with `@RolesAllowed`, backed by Vaadin's Spring Security integration, so a new view cannot be left unprotected by an omission in a list of URL patterns somewhere else.
+
+**Method security** repeats the check at the service layer with `@PreAuthorize`. A view that forgets its annotation is one mistake; a service anyone reaching it can call is a hole that outlives the screen in front of it.
+
+`MainLayout` itself is `@PermitAll`. It carries no data, and restricting it would block every role whose views live inside it.
+
+**Accounts awaiting setup cannot sign in.** `AppUserDetails.isEnabled()` reports false while a setup token is present, which puts the refusal where Spring already looks rather than leaving a null password hash to fail somewhere less predictable.
+
+### 7.5 Password Rules
 
 | Rule | Value |
 |---|---|
@@ -522,7 +569,9 @@ Rendered standalone, outside `MainLayout` — the navigation drawer is not shown
 | Must contain | at least one letter and one digit |
 | Confirmation | must match exactly |
 
-Rules are validated on both the client (for immediate feedback) and the server (as the authority). The client-side check is a convenience, never a control.
+The rule lives in one class used by every screen that sets a password, because a rule enforced in three places is a rule that will eventually differ between them.
+
+Length and a mix of characters, and nothing else. Rules that demand symbols and forbid repeats push people towards writing passwords down, which trades a guessable password for a discoverable one.
 
 ---
 
@@ -530,13 +579,15 @@ Rules are validated on both the client (for immediate feedback) and the server (
 
 ### 8.1 Theme
 
-Lumo's built-in light and dark variants are used. The toggle sets the theme attribute on the document element and persists the choice to `users.preferred_theme`, so it survives a new session on a different device. The stored preference is applied during layout construction to avoid a visible flash of the wrong theme.
+**Not built.** The column is there — `users.preferred_theme` — and Lumo ships light and dark variants, so the work is a toggle that sets the theme attribute and reads the stored preference during layout construction.
+
+It sits at the top of the list of things to cut, along with translation: neither shows anything about how the system works, and between them they cost more than the reporting screens do.
 
 ### 8.2 Internationalisation
 
-All user-facing strings resolve through Vaadin's `I18NProvider` backed by `messages_tr.properties` and `messages_en.properties`. No literal display strings appear in view code. The active locale comes from `users.preferred_language`, with the language select in the navbar updating both the session locale and the stored preference.
+**Not built.** The intent was `I18NProvider` over `messages_tr.properties` and `messages_en.properties`, with the locale from `users.preferred_language`. The column is there for it.
 
-Status labels, enum descriptions, and validation messages are all resolved through the same mechanism — a status badge shows the translated label, never the enum name.
+Display strings are currently written in the views in English. The presentation classes are where they concentrate, so moving them to a bundle later is mechanical rather than a hunt: status labels, stage names and deadline wording each live in one place already.
 
 ### 8.3 Grid Conventions
 
@@ -560,14 +611,17 @@ A `ConfirmDialog` is required for exactly those actions that cannot be undone:
 
 | Action | Confirmation | Reason |
 |---|---|---|
-| Mark task as `DONE` | Yes | Final state; also closes the request |
-| Reject request | Yes | Dead-end state, visible to the customer |
-| Change user role | Yes | Immediately alters access |
+| Mark task as `DONE` | Yes | Final stage; also closes the request |
+| Reject request | Yes | Dead end, and the customer is told why |
+| Change user role | Yes | The person finds out by losing access |
 | Deactivate user | Yes | Revokes access |
+| Reset account access | Yes | Discards the password and the security question |
+| Unlock account | Yes | |
 | Test failed (`TESTING` → `IN_PROGRESS`) | No | Reversible |
 | Claim task | No | Reversible by reassignment |
+| Reactivate user | No | Restores access rather than removing it |
 
-The policy is derived from the state machine rather than decided per screen: if a transition leads to a final state, it is confirmed.
+The policy is derived from the state machine rather than decided per screen: a transition into a final state is confirmed, and a reversible one is not. Confirming everything trains people to confirm without reading, which costs more than it saves.
 
 ### 8.6 Responsive Behaviour
 

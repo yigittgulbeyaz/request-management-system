@@ -21,7 +21,7 @@
 --------------------------------------------------------------------------------
 
 DECLARE
-    TYPE t_ids   IS TABLE OF NUMBER;
+TYPE t_ids   IS TABLE OF NUMBER;
     TYPE t_texts IS TABLE OF VARCHAR2(200 CHAR);
 
     v_customers t_ids;
@@ -66,21 +66,22 @@ DECLARE
     v_impact      NUMBER;
     v_urgency     NUMBER;
     v_wf_status   VARCHAR2(30 CHAR);
+    v_deadline    TIMESTAMP;
     v_age_days    NUMBER;
     v_resolve     NUMBER;
     v_rework      BOOLEAN;
 
 BEGIN
-    SELECT user_id BULK COLLECT INTO v_customers
-      FROM yigit_users WHERE role = 'CUSTOMER' AND is_active = 1;
+SELECT user_id BULK COLLECT INTO v_customers
+FROM yigit_users WHERE role = 'CUSTOMER' AND is_active = 1;
 
-    SELECT user_id BULK COLLECT INTO v_owners
-      FROM yigit_users WHERE role = 'PRODUCT_OWNER' AND is_active = 1;
+SELECT user_id BULK COLLECT INTO v_owners
+FROM yigit_users WHERE role = 'PRODUCT_OWNER' AND is_active = 1;
 
-    SELECT user_id BULK COLLECT INTO v_devs
-      FROM yigit_users WHERE role = 'DEVELOPER' AND is_active = 1;
+SELECT user_id BULK COLLECT INTO v_devs
+FROM yigit_users WHERE role = 'DEVELOPER' AND is_active = 1;
 
-    FOR i IN 1 .. v_titles.COUNT LOOP
+FOR i IN 1 .. v_titles.COUNT LOOP
 
         -- Status mix, chosen so the analytics have enough completed work to
         -- average over while the operational screens still have live rows.
@@ -90,7 +91,7 @@ BEGIN
                         WHEN i <= 21 THEN 'PRIORITIZED'
                         WHEN i <= 23 THEN 'NEW'
                         ELSE 'REJECTED'
-                    END;
+END;
 
         -- Spread creation dates across roughly six months. Ordering by index
         -- keeps the distribution even instead of clustering by chance.
@@ -130,7 +131,7 @@ BEGIN
                     v_created)
             RETURNING request_id INTO v_request_id;
 
-        ELSE
+ELSE
             INSERT INTO yigit_requests (customer_id, title, description, status,
                                         created_at)
             VALUES (v_customer, v_titles(i),
@@ -139,32 +140,32 @@ BEGIN
                     UNISTR('\00E7al\0131\015Fabilmesi i\00E7in olu\015Fturulmu\015Ftur.'),
                     v_status, v_created)
             RETURNING request_id INTO v_request_id;
-        END IF;
+END IF;
 
         ------------------------------------------------------------------
         -- Creation event
         ------------------------------------------------------------------
-        INSERT INTO yigit_request_status_history
-            (request_id, old_status, new_status, changed_by, changed_at)
-        VALUES (v_request_id, NULL, 'NEW', v_customer, v_created);
+INSERT INTO yigit_request_status_history
+(request_id, old_status, new_status, changed_by, changed_at)
+VALUES (v_request_id, NULL, 'NEW', v_customer, v_created);
 
-        ------------------------------------------------------------------
-        -- Prioritization: everything except requests still sitting in NEW
-        ------------------------------------------------------------------
-        IF v_status <> 'NEW' THEN
+------------------------------------------------------------------
+-- Prioritization: everything except requests still sitting in NEW
+------------------------------------------------------------------
+IF v_status <> 'NEW' THEN
             v_impact  := TRUNC(DBMS_RANDOM.VALUE(1, 6));
             v_urgency := TRUNC(DBMS_RANDOM.VALUE(1, 6));
 
-            INSERT INTO yigit_priorizations
-                (request_id, impact, urgency, prioritized_by, created_at)
-            VALUES (v_request_id, v_impact, v_urgency, v_owner,
-                    v_created + NUMTODSINTERVAL(1, 'DAY'));
+INSERT INTO yigit_priorizations
+(request_id, impact, urgency, prioritized_by, created_at)
+VALUES (v_request_id, v_impact, v_urgency, v_owner,
+        v_created + NUMTODSINTERVAL(1, 'DAY'));
 
-            INSERT INTO yigit_request_status_history
-                (request_id, old_status, new_status, changed_by, changed_at)
-            VALUES (v_request_id, 'NEW', 'PRIORITIZED', v_owner,
-                    v_created + NUMTODSINTERVAL(1, 'DAY'));
-        END IF;
+INSERT INTO yigit_request_status_history
+(request_id, old_status, new_status, changed_by, changed_at)
+VALUES (v_request_id, 'NEW', 'PRIORITIZED', v_owner,
+        v_created + NUMTODSINTERVAL(1, 'DAY'));
+END IF;
 
         ------------------------------------------------------------------
         -- Rejection event
@@ -174,7 +175,7 @@ BEGIN
                 (request_id, old_status, new_status, changed_by, changed_at)
             VALUES (v_request_id, 'PRIORITIZED', 'REJECTED', v_owner,
                     v_created + NUMTODSINTERVAL(2, 'DAY'));
-        END IF;
+END IF;
 
         ------------------------------------------------------------------
         -- Workflow, for requests that reached development
@@ -183,39 +184,52 @@ BEGIN
 
             IF v_status = 'CLOSED' THEN
                 v_wf_status := 'DONE';
-            ELSE
+ELSE
                 -- Live work spread across the three open stages
                 v_wf_status := CASE MOD(i, 3)
                                    WHEN 0 THEN 'BACKLOG'
                                    WHEN 1 THEN 'IN_PROGRESS'
                                    ELSE 'TESTING'
-                               END;
-            END IF;
+END;
+END IF;
 
-            INSERT INTO yigit_request_status_history
-                (request_id, old_status, new_status, changed_by, changed_at)
-            VALUES (v_request_id, 'PRIORITIZED', 'IN_WORKFLOW', v_owner,
-                    v_created + NUMTODSINTERVAL(2, 'DAY'));
+INSERT INTO yigit_request_status_history
+(request_id, old_status, new_status, changed_by, changed_at)
+VALUES (v_request_id, 'PRIORITIZED', 'IN_WORKFLOW', v_owner,
+        v_created + NUMTODSINTERVAL(2, 'DAY'));
+
+-- The same bands the application uses: two days for critical work,
+-- twenty for low. Measured from the conversion rather than from now,
+-- so the older rows arrive already overdue and the board has
+-- something to colour red.
+v_deadline := v_created + NUMTODSINTERVAL(2, 'DAY') + NUMTODSINTERVAL(
+                    CASE
+                        WHEN v_impact * v_urgency >= 20 THEN 2
+                        WHEN v_impact * v_urgency >= 13 THEN 5
+                        WHEN v_impact * v_urgency >= 7  THEN 10
+                        ELSE 20
+                    END, 'DAY');
 
             IF v_wf_status = 'BACKLOG' THEN
                 -- Unassigned tasks are only valid in BACKLOG
                 INSERT INTO yigit_workflows
-                    (request_id, workflow_status, created_at)
+                    (request_id, workflow_status, created_at, deadline)
                 VALUES (v_request_id, 'BACKLOG',
-                        v_created + NUMTODSINTERVAL(2, 'DAY'));
-            ELSE
+                        v_created + NUMTODSINTERVAL(2, 'DAY'), v_deadline);
+ELSE
                 INSERT INTO yigit_workflows
-                    (request_id, developer_id, workflow_status, created_at, assigned_at)
+                    (request_id, developer_id, workflow_status, created_at,
+                     assigned_at, deadline)
                 VALUES (v_request_id, v_dev, v_wf_status,
                         v_created + NUMTODSINTERVAL(2, 'DAY'),
-                        v_created + NUMTODSINTERVAL(3, 'DAY'));
+                        v_created + NUMTODSINTERVAL(3, 'DAY'), v_deadline);
 
-                INSERT INTO yigit_request_status_history
-                    (request_id, old_status, new_status, changed_by, changed_at)
-                VALUES (v_request_id, 'BACKLOG', 'IN_PROGRESS', v_dev,
-                        v_created + NUMTODSINTERVAL(3, 'DAY'));
+INSERT INTO yigit_request_status_history
+(request_id, old_status, new_status, changed_by, changed_at)
+VALUES (v_request_id, 'BACKLOG', 'IN_PROGRESS', v_dev,
+        v_created + NUMTODSINTERVAL(3, 'DAY'));
 
-                IF v_wf_status IN ('TESTING', 'DONE') THEN
+IF v_wf_status IN ('TESTING', 'DONE') THEN
                     INSERT INTO yigit_request_status_history
                         (request_id, old_status, new_status, changed_by, changed_at)
                     VALUES (v_request_id, 'IN_PROGRESS', 'TESTING', v_dev,
@@ -232,31 +246,31 @@ BEGIN
                         VALUES (v_request_id, 'TESTING', 'IN_PROGRESS', v_dev,
                                 v_created + NUMTODSINTERVAL(5, 'DAY'));
 
-                        INSERT INTO yigit_request_status_history
-                            (request_id, old_status, new_status, changed_by, changed_at)
-                        VALUES (v_request_id, 'IN_PROGRESS', 'TESTING', v_dev,
-                                v_created + NUMTODSINTERVAL(6, 'DAY'));
-                    END IF;
-                END IF;
+INSERT INTO yigit_request_status_history
+(request_id, old_status, new_status, changed_by, changed_at)
+VALUES (v_request_id, 'IN_PROGRESS', 'TESTING', v_dev,
+        v_created + NUMTODSINTERVAL(6, 'DAY'));
+END IF;
+END IF;
 
                 IF v_wf_status = 'DONE' THEN
                     INSERT INTO yigit_request_status_history
                         (request_id, old_status, new_status, changed_by, changed_at)
                     VALUES (v_request_id, 'TESTING', 'DONE', v_dev, v_closed);
 
-                    INSERT INTO yigit_request_status_history
-                        (request_id, old_status, new_status, changed_by, changed_at)
-                    VALUES (v_request_id, 'IN_WORKFLOW', 'CLOSED', v_dev, v_closed);
+INSERT INTO yigit_request_status_history
+(request_id, old_status, new_status, changed_by, changed_at)
+VALUES (v_request_id, 'IN_WORKFLOW', 'CLOSED', v_dev, v_closed);
 
-                    -- Completion notice, read on older requests
-                    INSERT INTO yigit_notifications
-                        (user_id, message, is_read, related_request_id, created_at)
-                    VALUES (v_customer, UNISTR('Talebiniz tamamland\0131.'),
-                            CASE WHEN v_age_days > 60 THEN 1 ELSE 0 END,
-                            v_request_id, v_closed);
-                END IF;
-            END IF;
-        END IF;
+-- Completion notice, read on older requests
+INSERT INTO yigit_notifications
+(user_id, message, is_read, related_request_id, created_at)
+VALUES (v_customer, UNISTR('Talebiniz tamamland\0131.'),
+        CASE WHEN v_age_days > 60 THEN 1 ELSE 0 END,
+        v_request_id, v_closed);
+END IF;
+END IF;
+END IF;
 
         ------------------------------------------------------------------
         -- Prioritization notice for recent requests only, so the unread
@@ -267,11 +281,11 @@ BEGIN
                 (user_id, message, related_request_id, created_at)
             VALUES (v_customer, UNISTR('Talebiniz de\011Ferlendirildi ve \00F6nceliklendirildi.'),
                     v_request_id, v_created + NUMTODSINTERVAL(1, 'DAY'));
-        END IF;
+END IF;
 
-    END LOOP;
+END LOOP;
 
-    COMMIT;
+COMMIT;
 END;
 /
 

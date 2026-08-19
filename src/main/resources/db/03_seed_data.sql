@@ -14,6 +14,10 @@
 --   developers         -> developer123456
 --   administrator      -> admin123456
 --   security answer    -> ankara (same for every seeded account)
+--
+-- One account is left unset up, the way an administrator leaves one behind:
+-- serkan.bulut@teknocorp.com has the code SETUPDEMO2026 and no password, and
+-- signing in is refused until the code is used at /setup.
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
@@ -109,16 +113,16 @@ VALUES ('Pelin Kurt', 'pelin.kurt@globalas.com',
         '$2a$10$ppNVGv95/KvdRvjZ4AXtHOYQGTx0AqxYBxA.ASqYpsqD4DQgL6YQS', 'CUSTOMER',
         'BIRTH_CITY', '$2a$10$qR3ydBHAtmEgpCFKps77W.sZyq7Xlae9eWok8dps/IKu0vmP1LHuW');
 
--- Customer holding a temporary password: on login this account must be
--- redirected to the forced password change screen and blocked from every
--- other route until the password is set.
-INSERT INTO yigit_users (name_surname, email, password_hash, role,
-                         must_change_password,
-                         security_question, security_answer_hash)
-VALUES ('Serkan Bulut', 'serkan.bulut@teknocorp.com',
-        '$2a$10$ppNVGv95/KvdRvjZ4AXtHOYQGTx0AqxYBxA.ASqYpsqD4DQgL6YQS', 'CUSTOMER',
-        1,
-        'BIRTH_CITY', '$2a$10$qR3ydBHAtmEgpCFKps77W.sZyq7Xlae9eWok8dps/IKu0vmP1LHuW');
+-- Account opened but not yet set up: it has a code and no password, which is
+-- what an administrator leaves behind when they create an account. Sign-in is
+-- refused until someone uses the code at /setup and chooses their own password
+-- and security question.
+--
+-- Code: SETUPDEMO2026
+INSERT INTO yigit_users (name_surname, email, role,
+                         setup_token, setup_token_expires_at)
+VALUES ('Serkan Bulut', 'serkan.bulut@teknocorp.com', 'CUSTOMER',
+        'SETUPDEMO2026', SYSTIMESTAMP + 30);
 
 -- Deactivated customer: must not be able to log in, but the name must still
 -- resolve on the request they submitted while active.
@@ -226,9 +230,9 @@ VALUES ((SELECT user_id FROM yigit_users WHERE email = 'ahmet.yilmaz@teknocorp.c
         TO_CLOB(RPAD(UNISTR('Sorun ilk olarak ge\00E7en hafta fark edildi ve o tarihten bu yana d\00FCzenli olarak tekrarlan\0131yor. '),
                      3000,
                      UNISTR('Kullan\0131c\0131 sepete \00FCr\00FCn ekliyor, \00F6deme ad\0131m\0131na ge\00E7iyor ve do\011Frulama penceresi bekleniyor. ')))
-          || TO_CLOB(RPAD(UNISTR('Baz\0131 taray\0131c\0131larda pencere hi\00E7 a\00E7\0131lm\0131yor, baz\0131lar\0131nda bo\015F bir \00E7er\00E7eve g\00F6r\00FCn\00FCyor. '),
-                          2000,
-                          UNISTR('Tekrarlanabilirlik oran\0131 y\00FCzde altm\0131\015F olarak \00F6l\00E7\00FCld\00FC. '))),
+            || TO_CLOB(RPAD(UNISTR('Baz\0131 taray\0131c\0131larda pencere hi\00E7 a\00E7\0131lm\0131yor, baz\0131lar\0131nda bo\015F bir \00E7er\00E7eve g\00F6r\00FCn\00FCyor. '),
+                            2000,
+                            UNISTR('Tekrarlanabilirlik oran\0131 y\00FCzde altm\0131\015F olarak \00F6l\00E7\00FCld\00FC. '))),
         'NEW', SYSTIMESTAMP - 3);
 
 -- Request submitted by the now-deactivated customer. Deactivation is a soft
@@ -292,27 +296,36 @@ VALUES ((SELECT request_id FROM yigit_requests WHERE title = UNISTR('\015Eifre S
 --------------------------------------------------------------------------------
 
 -- IN_PROGRESS, assigned
-INSERT INTO yigit_workflows (request_id, developer_id, workflow_status, created_at, assigned_at)
+-- Scored 25, which the critical band gives two days. Converted five days ago,
+-- so this one is already three days late and shows red on the board.
+INSERT INTO yigit_workflows (request_id, developer_id, workflow_status,
+                             created_at, assigned_at, deadline)
 VALUES ((SELECT request_id FROM yigit_requests WHERE title = UNISTR('Giri\015F API Hatas\0131')),
         (SELECT user_id FROM yigit_users WHERE email = 'deniz.yildirim@company.com'),
-        'IN_PROGRESS', SYSTIMESTAMP - 5, SYSTIMESTAMP - 5);
+        'IN_PROGRESS', SYSTIMESTAMP - 5, SYSTIMESTAMP - 5, SYSTIMESTAMP - 3);
 
--- TESTING, assigned
-INSERT INTO yigit_workflows (request_id, developer_id, workflow_status, created_at, assigned_at)
+-- TESTING, assigned. Scored 12, which the medium band gives ten days, so this
+-- one still has time and shows without alarm.
+INSERT INTO yigit_workflows (request_id, developer_id, workflow_status,
+                             created_at, assigned_at, deadline)
 VALUES ((SELECT request_id FROM yigit_requests WHERE title = UNISTR('Sipari\015F Listesinde Filtreleme Yava\015Fl\0131\011F\0131')),
         (SELECT user_id FROM yigit_users WHERE email = 'can.ozturk@company.com'),
-        'TESTING', SYSTIMESTAMP - 4, SYSTIMESTAMP - 4);
+        'TESTING', SYSTIMESTAMP - 4, SYSTIMESTAMP - 4, SYSTIMESTAMP + 6);
 
--- BACKLOG, unassigned: available for a developer to claim
-INSERT INTO yigit_workflows (request_id, workflow_status, created_at)
+-- BACKLOG, unassigned: available for a developer to claim. Due in a day, so
+-- the board shows it amber before anyone has taken it.
+INSERT INTO yigit_workflows (request_id, workflow_status, created_at, deadline)
 VALUES ((SELECT request_id FROM yigit_requests WHERE title = UNISTR('Fatura PDF \015Eablonunda Logo G\00F6r\00FCnm\00FCyor')),
-        'BACKLOG', SYSTIMESTAMP - 3);
+        'BACKLOG', SYSTIMESTAMP - 3, SYSTIMESTAMP + 1);
 
--- DONE, matching the CLOSED request
-INSERT INTO yigit_workflows (request_id, developer_id, workflow_status, created_at, assigned_at)
+-- DONE, matching the CLOSED request. Its deadline passed before it was
+-- finished, which the report counts and the board no longer shouts about:
+-- delivered late is late, but it is not still running out of time.
+INSERT INTO yigit_workflows (request_id, developer_id, workflow_status,
+                             created_at, assigned_at, deadline)
 VALUES ((SELECT request_id FROM yigit_requests WHERE title = UNISTR('\015Eifre S\0131f\0131rlama Ba\011Flant\0131s\0131 \00C7al\0131\015Fm\0131yor')),
         (SELECT user_id FROM yigit_users WHERE email = 'selin.aydin@company.com'),
-        'DONE', SYSTIMESTAMP - 18, SYSTIMESTAMP - 18);
+        'DONE', SYSTIMESTAMP - 18, SYSTIMESTAMP - 18, SYSTIMESTAMP - 16);
 
 
 --------------------------------------------------------------------------------
