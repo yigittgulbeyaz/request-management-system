@@ -332,7 +332,7 @@ VALUES ((SELECT request_id FROM yigit_requests WHERE title = UNISTR('\015Eifre S
 -- REQUEST_STATUS_HISTORY
 --
 -- Append-only audit trail. Covers both request-level and workflow-level
--- transitions, since the analytics read both from this table.
+-- transitions, since both are recorded in this one table.
 --------------------------------------------------------------------------------
 
 -- Full lifecycle of the closed request
@@ -366,7 +366,7 @@ VALUES ((SELECT request_id FROM yigit_requests WHERE title = UNISTR('\015Eifre S
         (SELECT user_id FROM yigit_users WHERE email = 'selin.aydin@company.com'),
         SYSTIMESTAMP - 16);
 
--- Test failure and rework: the transition the rework rate metric counts
+-- Test failure and rework: the one reverse move the board allows
 INSERT INTO yigit_request_status_history (request_id, old_status, new_status, changed_by, changed_at)
 VALUES ((SELECT request_id FROM yigit_requests WHERE title = UNISTR('\015Eifre S\0131f\0131rlama Ba\011Flant\0131s\0131 \00C7al\0131\015Fm\0131yor')),
         'TESTING', 'IN_PROGRESS',

@@ -174,7 +174,7 @@ Column	Type	Constraints	Notes
 `new_status`	`VARCHAR2(30)`	`NOT NULL`
 `changed_by`	`NUMBER`	`NOT NULL`, FK → `USERS`
 `changed_at`	`TIMESTAMP`	`NOT NULL`, default `SYSTIMESTAMP`
-This table records both state machines. Request-level transitions (`NEW` → `PRIORITIZED`) and workflow-level transitions (`IN_PROGRESS` → `TESTING`) are both written here, because the analytics need them together — the test rework rate counts `TESTING` → `IN_PROGRESS` rows, while resolution time spans the request-level lifecycle. Splitting them into two history tables would double the schema for no analytical gain.
+This table records both state machines. Request-level transitions (`NEW` → `PRIORITIZED`) and workflow-level transitions (`IN_PROGRESS` → `TESTING`) are both written here, because a single trail answers questions that span both — how long a request took end to end, and how often work returned from testing — without joining two tables. Splitting them would double the schema for no gain.
 Append-only. Rows are never updated or deleted. An audit trail that can be modified is not an audit trail.
 ---
 3. Relationships
@@ -203,7 +203,7 @@ Append-only. Rows are never updated or deleted. An audit trail that can be modif
    Oracle creates indexes automatically for primary keys and unique constraints. The following are added explicitly:
    Index	Columns	Rationale
    `IDX_REQUESTS_CUSTOMER`	`requests(customer_id)`	Every customer's "My Requests" query filters on this
-   `IDX_REQUESTS_STATUS`	`requests(status)`	PO pool filters by status; analytics group by it
+   `IDX_REQUESTS_STATUS`	`requests(status)`	The PO pool filters by status
    `IDX_REQUESTS_CREATED`	`requests(created_at)`	Monthly volume report ranges over this
    `IDX_WORKFLOWS_DEVELOPER`	`workflows(developer_id)`	Developer task list filters on this
    `IDX_WORKFLOWS_STATUS`	`workflows(workflow_status)`	Task board tabs filter on this

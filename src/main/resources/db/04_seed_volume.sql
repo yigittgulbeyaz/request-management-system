@@ -5,7 +5,7 @@
 -- Run after 03_seed_data.sql.
 --
 -- The hand-written seed covers specific scenarios and edge cases. This script
--- adds volume so the analytics screens have something meaningful to plot:
+-- adds volume so the data is realistic rather than minimal:
 --
 --   * 25 additional requests spread across roughly six months, so the monthly
 --     volume chart renders several bars rather than one
@@ -83,7 +83,7 @@ FROM yigit_users WHERE role = 'DEVELOPER' AND is_active = 1;
 
 FOR i IN 1 .. v_titles.COUNT LOOP
 
-        -- Status mix, chosen so the analytics have enough completed work to
+        -- Status mix, chosen so there is enough completed work to
         -- average over while the operational screens still have live rows.
         v_status := CASE
                         WHEN i <= 14 THEN 'CLOSED'
@@ -236,7 +236,7 @@ IF v_wf_status IN ('TESTING', 'DONE') THEN
                             v_created + NUMTODSINTERVAL(4, 'DAY'));
 
                     -- Roughly one task in three fails testing and returns to
-                    -- development. This is the transition the rework rate
+                    -- development. This is the one reverse move the board
                     -- metric counts, so it must not be absent or universal.
                     v_rework := (MOD(i, 3) = 0);
 
@@ -309,7 +309,7 @@ END;
 --   SELECT ROUND(AVG(closed_at - created_at), 1) FROM yigit_requests
 --    WHERE status = 'CLOSED';
 --
--- Test rework rate - should land between 0 and 100, not at either extreme:
+-- Returns from testing - should be present but not universal:
 --   SELECT ROUND(100 * SUM(CASE WHEN old_status = 'TESTING'
 --                                AND new_status = 'IN_PROGRESS' THEN 1 ELSE 0 END)
 --                    / NULLIF(SUM(CASE WHEN new_status = 'TESTING' THEN 1 ELSE 0 END), 0), 1)

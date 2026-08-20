@@ -34,9 +34,9 @@ The `SideNav` renders a different item set depending on the authenticated user's
 | Role | Navigation items |
 |---|---|
 | Customer | New Request, My Requests |
-| Product Owner | Prioritization Pool, Analytics |
+| Product Owner | Prioritization Pool |
 | Developer | My Tasks, Available Tasks |
-| Admin | Users, Analytics |
+| Admin | Users |
 
 Every role also reaches Profile and Sign out from the navbar.
 
@@ -87,11 +87,8 @@ Notifications appear bottom-end. Inline field errors are always preferred over n
 | `/dev/tasks` | `MyTasksView` | Developer | Main |
 | `/dev/available` | `AvailableTasksView` | Developer | Main |
 | `/admin/users` | `UserManagementView` | Admin | Main |
-| `/analytics` | `AnalyticsView` | PO, Admin | Main |
 
 **Root redirect:** `/` routes each role to its primary screen — Customer to `/requests/my`, PO to `/po/pool`, Developer to `/dev/tasks`, Admin to `/admin/users`.
-
-**Analytics is not under `/po/`.** A role prefix says whose screen it is, and two roles reach this one; naming it after either would misdescribe it for the other.
 
 **The scoring form takes a query parameter rather than a path segment.** A view instance is reused across navigations, so the id is read on entry rather than held as a field, and a query parameter is what `BeforeEnterEvent` hands over without further routing setup.
 
@@ -297,32 +294,7 @@ RejectRequestDialog
 
 The reason is mandatory and is shown to the customer, so the helper text states this explicitly: *"This reason will be visible to the customer."* Making the visibility explicit changes how the reason is written.
 
-### 4.4 Workflow Overview — `/po/workflows`
-
-Not built. Conversion leaves a task unclaimed and developers pull work from the available list, so there is nothing for an owner to assign; a screen for assigning would exist to contradict that.
-
-If it returns, it is for watching rather than acting: which tasks are running late, and who has how much open. The second half is a query that belongs with the reporting views.
-
-### 4.5 Analytics — `/analytics`
-
-```
-AnalyticsView
-└── VerticalLayout
-    ├── HorizontalLayout (KPI cards)
-    │   ├── Card: total open requests
-    │   ├── Card: average resolution time
-    │   ├── Card: requests this month
-    │   └── Card: test rework rate
-    ├── HorizontalLayout (charts row 1)
-    │   ├── ChartWrapper (bar)  → monthly request volume
-    │   └── ChartWrapper (pie)  → status distribution
-    ├── HorizontalLayout (charts row 2)
-    │   ├── ChartWrapper (bar)  → developer performance
-    │   └── Grid                → top 5 requesting customers
-    └── Button → "Export to Excel"
-```
-
-**Reached by both the owner and the administrator,** which is why the route carries no role prefix. This screen asks how the system is going; the admin user detail asks what one person has been doing. Same views underneath, two questions.
+**There is no assignment screen.** Conversion leaves a task unclaimed and developers pull work from the available list, so there is nothing for an owner to assign; a screen for assigning would exist to contradict that.
 
 ## 5. Developer Screens
 
@@ -481,7 +453,7 @@ UserDetailDialog (read-only)
 
 **The security answer is never shown.** Only its hash is stored, and an administrator able to read the answer would make the question worthless as a way of proving who someone is. For an account awaiting setup the section says so rather than showing empty fields, because the question has not been chosen yet.
 
-**The activity section is the person-shaped half of reporting.** Admin asks "what has this person been doing"; the analytics screen asks "how is the system going". Same queries, different question, so the same views feed both.
+**The activity section answers what one person has been doing.** The audit trail already records every transition with its actor, so the account view reads the same rows the request timeline does — asked about a user rather than about a request.
 
 ---
 
@@ -577,19 +549,7 @@ Length and a mix of characters, and nothing else. Rules that demand symbols and 
 
 ## 8. Cross-Cutting UI Rules
 
-### 8.1 Theme
-
-**Not built.** The column is there — `users.preferred_theme` — and Lumo ships light and dark variants, so the work is a toggle that sets the theme attribute and reads the stored preference during layout construction.
-
-It sits at the top of the list of things to cut, along with translation: neither shows anything about how the system works, and between them they cost more than the reporting screens do.
-
-### 8.2 Internationalisation
-
-**Not built.** The intent was `I18NProvider` over `messages_tr.properties` and `messages_en.properties`, with the locale from `users.preferred_language`. The column is there for it.
-
-Display strings are currently written in the views in English. The presentation classes are where they concentrate, so moving them to a bundle later is mechanical rather than a hunt: status labels, stage names and deadline wording each live in one place already.
-
-### 8.3 Grid Conventions
+### 8.1 Grid Conventions
 
 Applied to every grid in the application:
 
@@ -599,13 +559,13 @@ Applied to every grid in the application:
 - Filter fields use `ValueChangeMode.LAZY` so a query fires after a typing pause rather than per keystroke
 - Vaadin's grid uses infinite scrolling rather than numbered pages; no custom pagination controls are built
 
-### 8.4 Empty and Loading States
+### 8.2 Empty and Loading States
 
 Every grid has a defined empty state — an icon, an explanatory message, and where useful a primary action. A blank grid with no explanation reads as a failure rather than an absence of data.
 
 Long-running operations disable their trigger button and show its loading state rather than leaving the interface apparently idle.
 
-### 8.5 Confirmation Policy
+### 8.3 Confirmation Policy
 
 A `ConfirmDialog` is required for exactly those actions that cannot be undone:
 
@@ -623,6 +583,6 @@ A `ConfirmDialog` is required for exactly those actions that cannot be undone:
 
 The policy is derived from the state machine rather than decided per screen: a transition into a final state is confirmed, and a reversible one is not. Confirming everything trains people to confirm without reading, which costs more than it saves.
 
-### 8.6 Responsive Behaviour
+### 8.4 Responsive Behaviour
 
 `FormLayout` uses responsive steps so forms collapse from two columns to one below roughly 640px. The `AppLayout` drawer switches to overlay mode on narrow viewports automatically. Grids with many columns hide secondary columns below a breakpoint rather than compressing every column into illegibility.

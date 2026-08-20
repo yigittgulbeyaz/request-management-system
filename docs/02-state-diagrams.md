@@ -94,7 +94,7 @@ stateDiagram-v2
 | 2 | `BACKLOG` | `IN_PROGRESS` | Developer | Task is assigned (`developer_id` not null) | History entry |
 | 3 | `IN_PROGRESS` | `TESTING` | Developer | Development complete | History entry |
 | 4 | `TESTING` | `DONE` | Developer | Tests passed, confirmation dialog accepted | History entry, linked request → `CLOSED`, notification to customer |
-| 5 | `TESTING` | `IN_PROGRESS` | Developer | Tests failed, rework needed | History entry, counted in test rework rate metric |
+| 5 | `TESTING` | `IN_PROGRESS` | Developer | Tests failed, rework needed | History entry |
 
 ### 3.3 Forbidden Transitions
 
@@ -192,7 +192,7 @@ Reversible transitions (such as `TESTING` → `IN_PROGRESS`) require no confirma
 
 ### 5.5 Audit Trail
 
-Every transition writes a row to `request_status_history` capturing the old status, new status, the acting user, and the timestamp. This serves two purposes: traceability, and as the data source for the test rework rate metric (`TESTING` → `IN_PROGRESS` transition frequency).
+Every transition writes a row to `request_status_history` capturing the old status, new status, the acting user, and the timestamp. One table holds both machines, so a single trail answers questions that span them — how long a request took end to end, and how often work returned from testing.
 
 ---
 

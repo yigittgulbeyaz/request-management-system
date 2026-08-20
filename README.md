@@ -53,7 +53,7 @@ Run the scripts in `src/main/resources/db/` **in this order**:
 | `01_create_tables.sql` | Sequences, tables, constraints |
 | `02_indexes.sql` | Indexes |
 | `03_seed_data.sql` | Scenario data covering every status and edge case |
-| `04_seed_volume.sql` | Generated volume so the reporting screens have something to report |
+| `04_seed_volume.sql` | Generated volume so the screens have realistic data to show |
 
 Every object carries a `YIGIT_` prefix, because the schema is shared with
 other people's work. `99_drop_all.sql` removes all of it, in dependency order.
@@ -130,10 +130,11 @@ visible to a user, but they are not read-only.
 
 | Document | Contents |
 |---|---|
-| [Roles & Use Cases](docs/01-roles-and-use-cases.md) | Actors, permission matrix, 18 use-case scenarios |
+| [Roles & Use Cases](docs/01-roles-and-use-cases.md) | Actors, permission matrix, 16 use-case scenarios |
 | [State Diagrams](docs/02-state-diagrams.md) | Request and workflow state machines, transition rules |
 | [UI Design](docs/03-ui-design.md) | Screen-to-component mapping, routing, UI conventions |
 | [ERD](docs/04-erd.md) | Schema, relationships, indexing decisions |
+| [API Reference](docs/05-api-reference.md) | Service layer, DTOs, enums, error codes, transaction boundaries |
 
 ---
 
@@ -209,10 +210,4 @@ Working end to end for all four roles.
 | Workflow | Conversion, claiming, stage transitions, deadlines, automatic closure |
 | Accounts | Setup codes, password recovery, profile and password management |
 | Administration | User list, role changes, deactivation, unlocking, account detail |
-| Audit and notifications | Written with every state change |
-
-**Currently building:** the analytics dashboard, including developer capacity
-— open work per developer alongside what they have finished. Not an assignment
-aid, since nobody assigns: it answers whether the people are full while the
-backlog grows. Also in progress: comments on a request, and the in-app
-notification centre that reads the notifications already being written.
+| Audit and notifications | Written with every state change, with an in-app notification centre |

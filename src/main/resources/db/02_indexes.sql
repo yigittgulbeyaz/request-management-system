@@ -14,11 +14,11 @@
 CREATE INDEX yigit_idx_req_customer
     ON yigit_requests (customer_id);
 
--- PO pool filters by status; analytics group by it
+-- The PO pool filters by status
 CREATE INDEX yigit_idx_req_status
     ON yigit_requests (status);
 
--- Monthly volume report ranges over creation date
+-- Date-range queries over creation date
 CREATE INDEX yigit_idx_req_created
     ON yigit_requests (created_at);
 
@@ -41,7 +41,7 @@ CREATE INDEX yigit_idx_notif_unread
 CREATE INDEX yigit_idx_hist_request
     ON yigit_request_status_history (request_id, changed_at DESC);
 
--- Test rework rate metric scans transitions by target status
+-- Audit lookups by target status, such as counting returns from testing
 CREATE INDEX yigit_idx_hist_new_status
     ON yigit_request_status_history (new_status);
 
